@@ -207,11 +207,14 @@ function zoomFit(){
 }
 
 /* ============================== starfield ============================== */
+/* Stars live in a unit square and wrap around the viewport, so the background
+   stays uniformly filled at any zoom level or pan position; parallax comes
+   from scrolling each star by cam*zoom*p before wrapping. */
 let stars=[];
 (function(){
   let seed=42; const rnd=()=>{seed=(seed*16807)%2147483647; return seed/2147483647;};
   for(let i=0;i<900;i++){
-    stars.push({x:minX-40+rnd()*(maxX-minX+80), y:minY-40+rnd()*(maxY-minY+80),
+    stars.push({x:rnd(), y:rnd(),
       r:rnd()*1.1+0.2, a:rnd()*0.5+0.12, tw:rnd()*6.28, p:0.55+rnd()*0.45});
   }
 })();
@@ -432,9 +435,11 @@ function draw(t){
   const bg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.75);
   bg.addColorStop(0,'#0a1220'); bg.addColorStop(0.6,'#060a14'); bg.addColorStop(1,'#02040a');
   ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  // stars
+  // stars (wrapping starfield — uniform coverage at any zoom/pan)
+  const PX=W+80, PY=H+80;
   for(const st of stars){
-    const sx=(st.x-cam.x)*zoom*st.p+W/2, sy=(st.y-cam.y)*zoom*st.p+H/2;
+    const sx=((st.x*PX - cam.x*zoom*st.p) % PX + PX) % PX - 40;
+    const sy=((st.y*PY - cam.y*zoom*st.p) % PY + PY) % PY - 40;
     if(sx<-5||sy<-5||sx>W+5||sy>H+5) continue;
     const tw=0.75+0.25*Math.sin(t/900+st.tw);
     ctx.fillStyle=`rgba(200,220,255,${st.a*tw})`;
