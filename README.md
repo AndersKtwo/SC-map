@@ -1,0 +1,41 @@
+# The Verse — a Stellaris-style map of the Star Citizen universe
+
+An interactive, single-file starmap of the Star Citizen universe, drawn the way grand-strategy games draw galaxies: filled faction territories with glowing borders, a jump-point network rendered like hyperlanes, and the political geography of the 'verse visible at a glance.
+
+![Map overview](screenshot.png)
+
+**[▶ Open the live map](https://YOUR-USERNAME.github.io/YOUR-REPO/)** *(update this link after enabling GitHub Pages)*
+
+## Features
+
+The map covers all 90 star systems of the ARK Starmap with their canonical lore coordinates and the full network of 130 jump tunnels. Territory is computed from an influence field around each faction's systems, so borders emerge naturally between the UEE, the Vanduul clans, the Xi'an Empire, and the Banu Protectorate — while neutral pockets like Cathcart, Nyx, and Oberon carve enclaves out of imperial space, just like they should.
+
+On top of the base map: a route planner (click two systems or use the dropdowns) that respects jump-point sizes — try Sol → Terra restricted to large ships and you'll get the canonical six-jump trade lane through Davien, Kilian, Ellis, Magnus, and Stanton. Battle and conquest markers tell the story of the Vanduul war: Orion (fell 2712), Tiber (2736), Virgil (2736), and Caliban (2884) carry "former UEE" rings, Vega wears its 2945 battle marker. The dissolved Perry Line runs as a dashed historic border through the eight transitional systems, Oya renders as a split UEE/Xi'an disc for the shared sovereignty of Oya III, and every system opens a lore card with population, economy, and danger ratings. Current Xi'an naming is applied throughout (Kai'pua, Th.us'ūng, Yā'mon, Kyuk'ya, La'uo, Ē'aluth, T.āl, Ail'ka).
+
+Everything is one self-contained HTML file — no build step, no dependencies, no backend.
+
+## Hosting it yourself
+
+1. Fork or clone this repo (or just grab `index.html`).
+2. In the repo settings, enable **Pages** → deploy from the `main` branch, root folder.
+3. Your map is live at `https://<username>.github.io/<repo>/`.
+
+## Development
+
+`index.html` is generated — don't edit it directly. The source lives in `dev/`: `template.html` (page + rendering code) and `build_data.py` (transforms the raw ARK Starmap dump into compact map data and injects the lore annotations). Rebuild with:
+
+```
+python dev/build_data.py
+```
+
+## Data & lore sources
+
+System positions, affiliations, and jump tunnels come from the public [ARK Starmap](https://robertsspaceindustries.com/starmap) data. Lore annotations (Perry Line, Vanduul conquests, system renames, Oya III) were cross-checked against the [Star Citizen Wiki](https://starcitizen.tools). Deviations from the official starmap are lore-driven overlays, not canon.
+
+## How it was built
+
+This map was built collaboratively with Claude (Anthropic), from lore research through implementation and testing — an experiment in AI-assisted development of community tools.
+
+## Legal
+
+This is an unofficial fan project, not affiliated with the Cloud Imperium group of companies. Star Citizen®, Roberts Space Industries® and Cloud Imperium® are registered trademarks of Cloud Imperium Rights LLC. All game data, names, and lore are © Cloud Imperium Rights LLC and Cloud Imperium Rights Ltd. The map code is released under the MIT License (see `LICENSE`).
