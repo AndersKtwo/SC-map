@@ -48,8 +48,21 @@ FCA_CANDIDATE = ['Gurzil', 'Min']  # proposed/debated protection, not enacted
 # placed on this map. Revisit if CIG ever charts it.
 PERRY_UEE  = ['Gurzil', 'Horus', 'Oya', 'Tohil']
 PERRY_XIAN = ["Yā'mon", "Th.us'ūng", "Kyuk'ya", "La'uo"]
-CAPITALS = {'Sol': 'UEE capital — Earth', 'Terra': 'UEE — de facto second capital',
-            'Bacchus': 'Banu — possible homeworld & trade hub', 'Rihlah': 'Xi’an — principal system open to Humans'}
+# Tiered capital taxonomy: ★ political capital, ◆ de facto hub, ⌂ homeworld,
+# ◈ gateway, ✦ council seat. The Vanduul have no capital — the clans are nomadic.
+CAPITALS = {
+    'Sol':     {'glyphs': '★⌂', 'note': "Political capital of the UEE — the Senate sits in New York, Earth. Humanity's homeworld."},
+    'Terra':   {'glyphs': '◆',  'note': "De facto economic and cultural hub. Not the official capital — Terra's rivalry with Earth for primacy is a defining tension of UEE politics."},
+    'Bacchus': {'glyphs': '◆⌂', 'note': "Center of Banu trade and culture. Believed to be the Banu homeworld — even the Banu aren't certain; records were never kept."},
+    'Trise':   {'glyphs': '✦',  'note': 'Seat of the Banu Council, whose dictums define Banu society. The Protectorate has no formal capital; the Council governs from deliberate isolation.'},
+    'Rihlah':  {'glyphs': '◈',  'note': "Gateway system: the principal Xi'an system open to human travel and trade. Not the capital — that is Hyoton, uncharted by human cartographers."},
+    'Elysium': {'glyphs': '⌂',  'note': 'Homeworld of the Tevarin, conquered and absorbed by the UEE after the two Tevarin Wars.'},
+}
+# Oretani: cut off from the Empire when its only jump point (from Ferron) collapsed.
+ISOLATED = {
+    'Oretani': {'year': 2485, 'via': 'Ferron',
+                'note': 'Jump point from Ferron collapsed in 2485 — no contact since. The last recorded population figure predates the collapse and is unverifiable.'},
+}
 
 def clean(txt):
     if not txt: return ''
@@ -78,6 +91,7 @@ for s in systems:
     if name in PERRY_UEE: rec['perry'] = 'UEE'
     if name in PERRY_XIAN: rec['perry'] = 'XIAN'
     if name in CAPITALS: rec['capital'] = CAPITALS[name]
+    if name in ISOLATED: rec['isolated'] = ISOLATED[name]
     if name in FCA_PROTECTED: rec['fca'] = 1
     if name in FCA_CANDIDATE: rec['fcaCand'] = 1
     out_systems.append(rec)

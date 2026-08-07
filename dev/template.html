@@ -41,6 +41,7 @@
   #legend hr{border:none; border-top:1px solid var(--panel-border); margin:7px 0}
   .lg-mark{display:flex; align-items:center; gap:8px; margin:3px 0; color:var(--dim); font-size:11px}
   .lg-ic{width:14px; text-align:center; flex:none}
+  .lg-note{color:var(--dim); font-size:10px; line-height:1.4; max-width:210px; margin-top:5px; font-style:italic}
   /* Layers */
   #layers{top:14px; right:16px; padding:10px 14px; font-size:12.5px; min-width:170px}
   #layers label{display:flex; align-items:center; gap:8px; margin:4px 0; cursor:pointer; user-select:none}
@@ -104,15 +105,24 @@
   <h3>Sovereignties</h3>
   <div id="legendRows"></div>
   <hr>
-  <div class="lg-mark"><span class="lg-ic">●</span> Settled (has population)</div>
-  <div class="lg-mark"><span class="lg-ic">○</span> Claimed / uninhabited</div>
+  <div class="lg-mark"><span class="lg-ic">●</span> Solid — inhabited</div>
+  <div class="lg-mark"><span class="lg-ic">○</span> Hollow — uninhabited</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#aacdf0">━</span> Large jump lane</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#8cb4e1">─</span> Medium jump lane</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#8cb4e1">⋯</span> Small jump lane</div>
   <div class="lg-mark"><span class="lg-ic">⚔</span> Major battle / clash</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#c8324f">◍</span> UEE claim under Vanduul occupation</div>
   <div class="lg-mark"><span class="lg-ic">◐</span> Contested / shared presence</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9ad4a0">╌</span> Former Perry Line (dissolved 2793)</div>
-  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">★</span> Capital / homeworld</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff">◌</span> Fair Chance Act protected</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff;opacity:.45">◌</span> FCA candidate (debated)</div>
+  <hr>
+  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">★</span> Political capital</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">◆</span> De facto hub</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">⌂</span> Homeworld</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">◈</span> Gateway system</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">✦</span> Council seat</div>
+  <div class="lg-note">The Vanduul have no capital: the clans are nomadic — each Kingship is a mobile seat of power.</div>
 </div>
 
 <div class="hud" id="layers">
@@ -460,10 +470,10 @@ function draw(t){
       const runs=terrRuns[affCode];
       if(!runs){ // sealed border (UEE)
         ctx.save();
-        ctx.shadowColor=col; ctx.shadowBlur=10;
+        ctx.shadowColor=col; ctx.shadowBlur=7;
         ctx.strokeStyle=hexA(col,0.75); ctx.lineWidth=1.6; ctx.stroke();
         ctx.restore();
-        ctx.strokeStyle=hexA(col,0.22); ctx.lineWidth=5; ctx.stroke();
+        ctx.strokeStyle=hexA(col,0.18); ctx.lineWidth=5; ctx.stroke();
       } else { // frontier border: solid → dashed → gone
         for(const run of runs){
           if(run.b<=0) continue;
@@ -472,10 +482,10 @@ function draw(t){
           run.pts.forEach((p,i)=> i? ctx.lineTo(w2sX(p.x),w2sY(p.y)) : ctx.moveTo(w2sX(p.x),w2sY(p.y)));
           if(f<0.99) ctx.setLineDash(f>0.5?[7,5]:[3,7]);
           ctx.save();
-          if(f>0.85){ ctx.shadowColor=col; ctx.shadowBlur=10; }
+          if(f>0.85){ ctx.shadowColor=col; ctx.shadowBlur=7; }
           ctx.strokeStyle=hexA(col,0.75*f); ctx.lineWidth=1.6; ctx.stroke();
           ctx.restore();
-          ctx.strokeStyle=hexA(col,0.22*f); ctx.lineWidth=5; ctx.stroke();
+          ctx.strokeStyle=hexA(col,0.18*f); ctx.lineWidth=5; ctx.stroke();
           ctx.setLineDash([]);
         }
       }
@@ -522,17 +532,17 @@ function draw(t){
     ctx.fillText('PERRY LINE · dissolved 2793', w2sX(mp.x)+6, w2sY(mp.y)-8);
     ctx.restore();
   }
-  // jump network
+  // jump network — three unmistakable tiers: S dotted, M thin solid, L bold artery
   if(on('routes')){
     for(const tn of DATA.tunnels){
       const a=byId[tn.a], b=byId[tn.b];
-      const w = tn.size==='L'?1.5 : tn.size==='M'?1.0 : 0.7;
-      const al = tn.size==='L'?0.34 : tn.size==='M'?0.24 : 0.17;
-      ctx.strokeStyle=`rgba(140,180,225,${al})`; ctx.lineWidth=w;
-      if(tn.size==='S') ctx.setLineDash([3,4]);
+      if(tn.size==='L'){ ctx.strokeStyle='rgba(170,205,240,0.60)'; ctx.lineWidth=2.0; }
+      else if(tn.size==='M'){ ctx.strokeStyle='rgba(140,180,225,0.45)'; ctx.lineWidth=1.0; }
+      else { ctx.strokeStyle='rgba(140,180,225,0.35)'; ctx.lineWidth=2.2; ctx.setLineDash([0.1,6]); ctx.lineCap='round'; }
       ctx.beginPath(); ctx.moveTo(w2sX(a.x),w2sY(a.y)); ctx.lineTo(w2sX(b.x),w2sY(b.y)); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.setLineDash([]); ctx.lineCap='butt';
     }
+    drawSevered();
   }
   // active route
   if(route){
@@ -547,7 +557,7 @@ function draw(t){
   for(const s of SYS){
     const x=w2sX(s.x), y=w2sY(s.y);
     if(x<-30||y<-30||x>W+30||y>H+30) continue;
-    const col=AFF[s.aff].color, r=nodeR(s);
+    const col = s.isolated ? '#7593a3' : AFF[s.aff].color, r=nodeR(s);
     // lost-system overlay ring
     if(s.lost && on('battles')){
       ctx.strokeStyle='rgba(72,187,212,.55)'; ctx.lineWidth=1.1; ctx.setLineDash([2.5,2.5]);
@@ -578,12 +588,17 @@ function draw(t){
       ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=0.6;
       ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.stroke();
     }
-    // capital star ring
+    // capital ring + tiered glyphs (★ political ◆ hub ⌂ homeworld ◈ gateway ✦ council)
     if(s.capital){
       ctx.strokeStyle='rgba(232,217,160,.85)'; ctx.lineWidth=1;
       ctx.beginPath(); ctx.arc(x,y,r+3,0,6.284); ctx.stroke();
       ctx.fillStyle='rgba(232,217,160,.95)'; ctx.font='9px sans-serif'; ctx.textAlign='center';
-      ctx.fillText('★', x, y-r-6);
+      ctx.fillText(s.capital.glyphs, x, y-r-6);
+    }
+    // isolated system: "?" status badge
+    if(s.isolated){
+      ctx.fillStyle='rgba(200,190,150,.85)'; ctx.font='600 10px "Segoe UI",sans-serif'; ctx.textAlign='center';
+      ctx.fillText('?', x+r+6, y-r+1);
     }
     // contested half-ring marker
     if(s.contested && on('battles')){
@@ -606,10 +621,43 @@ function draw(t){
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.65)';
       ctx.fillText(s.name, x+0.8, y+r+11.8);
-      ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col,0.95);
+      ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col, s.isolated?0.55:0.95);
       ctx.fillText(s.name, x, y+r+11);
     }
   }
+  // the Xi'an capital lies beyond the charted border
+  if(on('names')){
+    ctx.fillStyle='rgba(120,180,110,.65)'; ctx.font='italic 10px "Segoe UI",sans-serif'; ctx.textAlign='left';
+    ctx.fillText('→ Hyoton (capital) · uncharted', w2sX(XI_EAST.x+11), w2sY(XI_EAST.y+4));
+  }
+}
+
+/* the one severed lane: Ferron–Oretani, collapsed 2485. Solid at both ends,
+   fragmenting toward a visible gap with a break glyph — connection vs severance. */
+const SEVERED = {a: byName['Ferron'], b: byName['Oretani'], year: 2485};
+const XI_EAST = SYS.filter(s=>s.aff==='XIAN').reduce((m,s)=> s.x>m.x?s:m); // anchor for the Hyoton annotation
+function drawSevered(){
+  const ax=w2sX(SEVERED.a.x), ay=w2sY(SEVERED.a.y), bx=w2sX(SEVERED.b.x), by=w2sY(SEVERED.b.y);
+  const lerp=t=>[ax+(bx-ax)*t, ay+(by-ay)*t];
+  const seg=(t0,t1,al,dash)=>{
+    const [x0,y0]=lerp(t0), [x1,y1]=lerp(t1);
+    ctx.strokeStyle=`rgba(140,180,225,${al})`; ctx.lineWidth=1.2;
+    ctx.setLineDash(dash||[]);
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  seg(0,0.24,0.5);            seg(0.76,1,0.5);            // solid ends
+  seg(0.24,0.38,0.4,[5,4]);   seg(0.62,0.76,0.4,[5,4]);   // fragmenting…
+  seg(0.38,0.44,0.28,[2,5]);  seg(0.56,0.62,0.28,[2,5]);  // …to crumbs
+  const [mx,my]=lerp(0.5);                                 // gap + break glyph
+  ctx.fillStyle='rgba(217,127,127,.85)'; ctx.font='10px "Segoe UI",sans-serif'; ctx.textAlign='center';
+  ctx.fillText('✕', mx, my+3.5);
+}
+function severedHit(e){
+  const ax=w2sX(SEVERED.a.x), ay=w2sY(SEVERED.a.y), bx=w2sX(SEVERED.b.x), by=w2sY(SEVERED.b.y);
+  const dx=bx-ax, dy=by-ay, len2=dx*dx+dy*dy;
+  const t=Math.max(0,Math.min(1,((e.clientX-ax)*dx+(e.clientY-ay)*dy)/len2));
+  return Math.hypot(e.clientX-(ax+dx*t), e.clientY-(ay+dy*t)) < 7;
 }
 
 /* live game mode: only the flyable systems of the current alpha */
@@ -724,7 +772,15 @@ function pick(e){
 const tip=L('tip');
 function hover(e){
   const s=pick(e); hoverSys=s;
-  if(!s){tip.style.display='none';canvas.style.cursor='grab';return;}
+  if(!s){
+    if(MODE==='lore' && on('routes') && severedHit(e)){
+      tip.innerHTML=`<div class="t-name" style="font-size:12px">Ferron–Oretani jump point · collapsed 2485</div>`;
+      tip.style.display='block';
+      tip.style.left=Math.min(e.clientX+16,W-280)+'px'; tip.style.top=Math.min(e.clientY+14,H-60)+'px';
+      canvas.style.cursor='help'; return;
+    }
+    tip.style.display='none';canvas.style.cursor='grab';return;
+  }
   canvas.style.cursor='pointer';
   const col=AFF[s.aff].color;
   let flags='';
@@ -732,7 +788,8 @@ function hover(e){
   if(s.lost) flags+=`<div class="t-flag" style="color:#e88">◍ Claimed by the UEE — under Vanduul occupation since ${s.lost.fell}</div>`;
   if(s.contested) flags+=`<div class="t-flag" style="color:#ffd76e">◐ ${s.contested}</div>`;
   if(s.clash) flags+=`<div class="t-flag" style="color:#ff9d9d">⚔ ${s.clash.battle} (${s.clash.year})</div>`;
-  if(s.capital) flags+=`<div class="t-flag" style="color:#e8d9a0">★ ${s.capital}</div>`;
+  if(s.capital) flags+=`<div class="t-flag" style="color:#e8d9a0">${s.capital.glyphs} ${s.capital.note}</div>`;
+  if(s.isolated) flags+=`<div class="t-flag" style="color:#c9bf9a">? ${s.isolated.note}</div>`;
   if(s.perry) flags+=`<div class="t-flag" style="color:#9ad4a0">╌ Former Perry Line system</div>`;
   if(s.fca) flags+=`<div class="t-flag" style="color:#b9a4ff">◌ Fair Chance Act — protected developing world</div>`;
   if(s.fcaCand) flags+=`<div class="t-flag" style="color:#9b8ac9">◌ FCA candidate — protection debated, not enacted</div>`;
@@ -757,11 +814,13 @@ function showDetail(s){
   const col=AFF[s.aff].color;
   let h=`<div class="d-name">${s.name}</div>`;
   if(s.formerName) h+=`<div class="d-former">formerly ${s.formerName}</div>`;
-  h+=`<div class="d-aff" style="color:${col}">${AFF[s.aff].name}${s.capital?' · ★ '+s.capital:''}</div>`;
+  h+=`<div class="d-aff" style="color:${col}">${AFF[s.aff].name}${s.capital?' · '+s.capital.glyphs:''}</div>`;
   h+=`<div class="bars">
     <span>Pop</span>${bar(s.pop,10,'#7fb6d9')}
     <span>Economy</span>${bar(s.econ,10,'#8fd98f')}
     <span>Danger</span>${bar(s.danger,10,'#d97f7f')}</div>`;
+  if(s.capital) h+=`<div class="d-flag">${s.capital.glyphs} ${s.capital.note}</div>`;
+  if(s.isolated) h+=`<div class="d-flag">? <b>Isolated since ${s.isolated.year}</b><br>${s.isolated.note}</div>`;
   if(s.lost) h+=`<div class="d-flag war">◍ <b>Claimed by the UEE — under Vanduul occupation (fell ${s.lost.fell})</b><br>${s.lost.note}</div>`;
   if(s.clash&&!s.lost) h+=`<div class="d-flag war">⚔ ${s.clash.battle} (${s.clash.year})</div>`;
   if(s.contested) h+=`<div class="d-flag">◐ ${s.contested}</div>`;
