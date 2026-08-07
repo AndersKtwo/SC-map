@@ -24,6 +24,14 @@
   #title{top:14px; left:16px; padding:10px 16px; pointer-events:none}
   #title h1{font-size:17px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#e8f2fa}
   #title p{font-size:10.5px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-top:2px}
+  /* Mode switch */
+  #mode{top:14px; left:50%; transform:translateX(-50%); display:flex; gap:4px; padding:4px}
+  #mode button{background:transparent; border:1px solid transparent; color:var(--dim); font-size:11.5px;
+    letter-spacing:1.5px; text-transform:uppercase; padding:5px 12px; border-radius:4px; cursor:pointer;
+    font-family:inherit}
+  #mode button.active{background:rgba(72,187,212,.15); border-color:rgba(72,187,212,.45); color:var(--accent)}
+  #mode button:hover:not(.active){color:var(--text)}
+  body.live #legend, body.live #layers, body.live #route{display:none}
   /* Legend */
   #legend{bottom:16px; left:16px; padding:10px 14px; font-size:12px}
   #legend h3, .hud h3{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); margin-bottom:7px}
@@ -66,6 +74,8 @@
   #detail .d-flag{margin-top:8px; padding:7px 9px; border-radius:4px; font-size:11.3px; line-height:1.45;
     background:rgba(255,206,23,.07); border:1px solid rgba(255,206,23,.25)}
   #detail .d-flag.war{background:rgba(200,50,79,.1); border-color:rgba(200,50,79,.4)}
+  #detail .d-flag.fca{background:rgba(155,123,255,.08); border-color:rgba(155,123,255,.35)}
+  #dBody{max-height:calc(100vh - 200px); overflow-y:auto; padding-right:6px}
   #detail .bars{margin-top:9px; display:grid; grid-template-columns:52px 1fr; gap:4px 8px; align-items:center; font-size:10px;
     letter-spacing:1px; text-transform:uppercase; color:var(--dim)}
   #detail .bar{height:4px; border-radius:2px; background:rgba(120,150,180,.15); overflow:hidden}
@@ -81,8 +91,13 @@
 
 <div class="hud" id="title">
   <h1>The Verse</h1>
-  <p>Star Citizen · Known Universe · ARK Starmap 2946</p>
+  <p id="subtitle">Star Citizen · Known Universe · ARK Starmap 2946</p>
   <p style="margin-top:4px;font-size:9px;letter-spacing:1px;color:#5a6c7d">Unofficial fan project · Data © Cloud Imperium Rights LLC</p>
+</div>
+
+<div class="hud" id="mode">
+  <button id="modeLore" class="active">Lore atlas</button>
+  <button id="modeLive">Live game</button>
 </div>
 
 <div class="hud" id="legend">
@@ -94,6 +109,8 @@
   <div class="lg-mark"><span class="lg-ic">◐</span> Contested / shared presence</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9ad4a0">╌</span> Former Perry Line (dissolved 2793)</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#e8d9a0">★</span> Capital / homeworld</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff">◌</span> Fair Chance Act protected</div>
+  <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff;opacity:.45">◌</span> FCA candidate (debated)</div>
 </div>
 
 <div class="hud" id="layers">
@@ -132,7 +149,30 @@ const ctx = canvas.getContext('2d');
 let W=0, H=0, DPR=1;
 const SYS = DATA.systems, AFF = DATA.affs;
 const byId = {}; SYS.forEach(s => byId[s.id] = s);
+const byName = {}; SYS.forEach(s => byName[s.name] = s);
 const SZRANK = {S:1, M:2, L:3};
+
+/* ============================== modes ============================== */
+let MODE = 'lore';                       // 'lore' | 'live'
+const views = {};                        // per-mode saved camera
+const LIVE_PATCH = 'Alpha 4.9';
+const liveSys = ['Stanton','Pyro','Nyx'].map(n => byName[n]);
+const LIVE_SET = new Set(liveSys.map(s => s.id));
+/* in-game jump lattice; Stanton–Nyx is CIG's official convenience placeholder, not canon */
+const LIVE_JUMPS = [
+  {a: byName['Stanton'], b: byName['Pyro'], ph: false},
+  {a: byName['Pyro'],    b: byName['Nyx'],  ph: false},
+  {a: byName['Stanton'], b: byName['Nyx'],  ph: true},
+];
+/* canon tunnels from a live system to a not-yet-built neighbor → ghost stubs */
+const GHOSTS = [];
+DATA.tunnels.forEach(t => {
+  const a = byId[t.a], b = byId[t.b];
+  const ain = LIVE_SET.has(a.id), bin = LIVE_SET.has(b.id);
+  if(ain && bin) return;
+  if(ain) GHOSTS.push({from: a, to: b});
+  else if(bin) GHOSTS.push({from: b, to: a});
+});
 
 /* world bounds */
 let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
@@ -151,9 +191,17 @@ function resize(){
   canvas.style.width = W+'px'; canvas.style.height = H+'px';
   zoomFit(); dirty=true;
 }
+function fitBounds(x0,x1,y0,y1){
+  zoom = Math.min(W/(x1-x0), H/(y1-y0))*0.98;
+  cam = {x:(x0+x1)/2, y:(y0+y1)/2};
+}
 function zoomFit(){
-  zoom = Math.min(W/(maxX-minX), H/(maxY-minY))*0.98;
-  cam = {x:(minX+maxX)/2, y:(minY+maxY)/2};
+  if(MODE==='live'){
+    const xs=liveSys.map(s=>s.x), ys=liveSys.map(s=>s.y), P=13;
+    fitBounds(Math.min(...xs)-P, Math.max(...xs)+P, Math.min(...ys)-P, Math.max(...ys)+P);
+  } else {
+    fitBounds(minX, maxX, minY, maxY);
+  }
 }
 
 /* ============================== starfield ============================== */
@@ -201,6 +249,41 @@ function buildTerritories(){
     const mask=(i,j)=> i>=0&&j>=0&&i<nx&&j<ny&&owner[i+j*nx]===b ? 1:0;
     territories[affCode]=marchingSquares(mask,nx,ny).map(c=>smooth(smooth(c)).map(p=>({x:minX+p.x*GRID, y:minY+p.y*GRID})));
   });
+  buildBorderRuns();
+}
+
+/* Frontier factions' borders dissolve where they face uncharted emptiness.
+   Facing detection is automatic: density of OTHER factions' systems near a
+   contour point ≈ "charted space on the far side". High density → solid line,
+   low → dashed, none → the border fades out entirely. UEE stays sealed. */
+const OPEN = ['XIAN','VNCL','BANU'];
+const BRK = 7; // alpha buckets
+let terrRuns = {}; // aff -> [{b:bucket, pts:[world pts]}], null = sealed
+function buildBorderRuns(){
+  terrRuns={};
+  const SIGF=11, twoS=2*SIGF*SIGF, cut2=(SIGF*4)**2, LO=0.18, HI=0.9;
+  for(const aff of BLOBS){
+    if(!OPEN.includes(aff)){ terrRuns[aff]=null; continue; }
+    const foreign=SYS.filter(s=>s.aff!==aff);
+    const runs=[];
+    for(const c of territories[aff]){
+      const lv=c.map(p=>{
+        let d=0;
+        for(const s of foreign){
+          const dx=s.x-p.x, dy=s.y-p.y, d2=dx*dx+dy*dy;
+          if(d2<cut2) d+=Math.exp(-d2/twoS);
+        }
+        return Math.round(Math.max(0,Math.min(1,(d-LO)/(HI-LO)))*BRK);
+      });
+      let cur=null;
+      for(let i=0;i<c.length-1;i++){
+        const b=Math.min(lv[i],lv[i+1]);
+        if(!cur||cur.b!==b){ cur={b,pts:[c[i]]}; runs.push(cur); }
+        cur.pts.push(c[i+1]);
+      }
+    }
+    terrRuns[aff]=runs;
+  }
 }
 function marchingSquares(mask,nx,ny){
   const segs=new Map(); const key=(x,y)=>x.toFixed(2)+','+y.toFixed(2);
@@ -313,6 +396,8 @@ function draw(t){
     ctx.fillStyle=`rgba(200,220,255,${st.a*tw})`;
     ctx.beginPath(); ctx.arc(sx,sy,st.r,0,6.284); ctx.fill();
   }
+  // live game mode renders its own minimal scene
+  if(MODE==='live'){ drawLive(); return; }
   // territories
   if(on('borders')){
     for(const affCode of BLOBS){
@@ -323,11 +408,28 @@ function draw(t){
         ctx.closePath();
       }
       ctx.fillStyle=hexA(col,0.09); ctx.fill();
-      ctx.save();
-      ctx.shadowColor=col; ctx.shadowBlur=10;
-      ctx.strokeStyle=hexA(col,0.75); ctx.lineWidth=1.6; ctx.stroke();
-      ctx.restore();
-      ctx.strokeStyle=hexA(col,0.22); ctx.lineWidth=5; ctx.stroke();
+      const runs=terrRuns[affCode];
+      if(!runs){ // sealed border (UEE)
+        ctx.save();
+        ctx.shadowColor=col; ctx.shadowBlur=10;
+        ctx.strokeStyle=hexA(col,0.75); ctx.lineWidth=1.6; ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle=hexA(col,0.22); ctx.lineWidth=5; ctx.stroke();
+      } else { // frontier border: solid → dashed → gone
+        for(const run of runs){
+          if(run.b<=0) continue;
+          const f=run.b/BRK;
+          ctx.beginPath();
+          run.pts.forEach((p,i)=> i? ctx.lineTo(w2sX(p.x),w2sY(p.y)) : ctx.moveTo(w2sX(p.x),w2sY(p.y)));
+          if(f<0.99) ctx.setLineDash(f>0.5?[7,5]:[3,7]);
+          ctx.save();
+          if(f>0.85){ ctx.shadowColor=col; ctx.shadowBlur=10; }
+          ctx.strokeStyle=hexA(col,0.75*f); ctx.lineWidth=1.6; ctx.stroke();
+          ctx.restore();
+          ctx.strokeStyle=hexA(col,0.22*f); ctx.lineWidth=5; ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
     }
   }
   // Perry line
@@ -371,6 +473,14 @@ function draw(t){
     // lost-system overlay ring
     if(s.lost && on('battles')){
       ctx.strokeStyle='rgba(72,187,212,.55)'; ctx.lineWidth=1.1; ctx.setLineDash([2.5,2.5]);
+      ctx.beginPath(); ctx.arc(x,y,r+4.5,0,6.284); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // Fair Chance Act ring (candidates fainter)
+    if(s.fca){
+      ctx.strokeStyle='rgba(155,123,255,.85)'; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.arc(x,y,r+4.5,0,6.284); ctx.stroke(); ctx.setLineDash([]);
+    } else if(s.fcaCand){
+      ctx.strokeStyle='rgba(155,123,255,.35)'; ctx.lineWidth=1; ctx.setLineDash([2,5]);
       ctx.beginPath(); ctx.arc(x,y,r+4.5,0,6.284); ctx.stroke(); ctx.setLineDash([]);
     }
     // node
@@ -419,8 +529,84 @@ function draw(t){
   }
 }
 
+/* live game mode: only the flyable systems of the current alpha */
+function drawLive(){
+  // in-game jumps (Stanton–Nyx placeholder in hazard orange)
+  for(const j of LIVE_JUMPS){
+    const ax=w2sX(j.a.x), ay=w2sY(j.a.y), bx=w2sX(j.b.x), by=w2sY(j.b.y);
+    ctx.save();
+    if(j.ph){
+      ctx.strokeStyle='rgba(255,150,54,.8)'; ctx.lineWidth=1.6; ctx.setLineDash([8,6]);
+      ctx.shadowColor='#ff9636'; ctx.shadowBlur=6;
+    } else {
+      ctx.strokeStyle='rgba(150,195,235,.6)'; ctx.lineWidth=2; ctx.shadowColor='#8cc4ea'; ctx.shadowBlur=8;
+    }
+    ctx.beginPath(); ctx.moveTo(ax,ay);
+    if(j.ph){ // bow the placeholder outward — Pyro sits nearly on the straight line
+      var mx=(ax+bx)/2, my=(ay+by)/2, dpx=bx-ax, dpy=by-ay, dl=Math.hypot(dpx,dpy);
+      var cx=mx-dpy/dl*dl*0.16, cy=my+dpx/dl*dl*0.16;
+      ctx.quadraticCurveTo(cx,cy,bx,by);
+    } else ctx.lineTo(bx,by);
+    ctx.stroke();
+    ctx.restore(); ctx.setLineDash([]);
+    if(j.ph){
+      const lx=(ax+bx)/2+(cx-(ax+bx)/2)*0.5, ly=(ay+by)/2+(cy-(ay+by)/2)*0.5;
+      ctx.fillStyle='rgba(255,150,54,.9)'; ctx.font='10px "Segoe UI",sans-serif'; ctx.textAlign='center';
+      ctx.fillText('⚠ placeholder jump · non-canon · '+LIVE_PATCH, lx, ly-6);
+    }
+  }
+  // ghost stubs toward unbuilt canon neighbors
+  for(const g of GHOSTS){
+    const fx=w2sX(g.from.x), fy=w2sY(g.from.y);
+    const dx=g.to.x-g.from.x, dy=g.to.y-g.from.y, d=Math.hypot(dx,dy);
+    const ux=dx/d, uy=dy/d, len=Math.max(46, Math.min(100, 2.6*zoom));
+    const sx=fx+ux*16, sy=fy+uy*16, ex=sx+ux*len, ey=sy+uy*len;
+    const gr=ctx.createLinearGradient(sx,sy,ex,ey);
+    gr.addColorStop(0,'rgba(140,180,225,.5)'); gr.addColorStop(1,'rgba(140,180,225,0)');
+    ctx.strokeStyle=gr; ctx.lineWidth=1.1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(140,170,205,.5)'; ctx.font='9px "Segoe UI",sans-serif';
+    ctx.textAlign = ux>=0 ? 'left' : 'right';
+    ctx.fillText('→ '+g.to.name+' · unbuilt', ex+ux*7, ey+uy*7+3);
+  }
+  // the flyable systems
+  for(const s of liveSys){
+    const x=w2sX(s.x), y=w2sY(s.y);
+    const col=AFF[s.aff].color, r=nodeR(s)+1.5;
+    ctx.save();
+    ctx.shadowColor=col; ctx.shadowBlur=(s===hoverSys)?18:11;
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=0.7;
+    ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.stroke();
+    ctx.font='600 12px "Segoe UI",sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillText(s.name, x+0.8, y+r+14.8);
+    ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col,0.95);
+    ctx.fillText(s.name, x, y+r+14);
+  }
+}
+
 let raf;
 function loop(t){ draw(t); raf=requestAnimationFrame(loop); }
+
+/* ============================== mode switch ============================== */
+function setMode(m){
+  if(MODE===m) return;
+  views[MODE]={cam:{x:cam.x,y:cam.y}, zoom};
+  MODE=m;
+  document.body.classList.toggle('live', m==='live');
+  L('modeLore').classList.toggle('active', m==='lore');
+  L('modeLive').classList.toggle('active', m==='live');
+  L('subtitle').textContent = m==='live'
+    ? 'Live game · '+LIVE_PATCH+' · Stanton — Pyro — Nyx'
+    : 'Star Citizen · Known Universe · ARK Starmap 2946';
+  if(views[m]){ cam={x:views[m].cam.x, y:views[m].cam.y}; zoom=views[m].zoom; }
+  else zoomFit();
+  hoverSys=null; tip.style.display='none'; L('detail').style.display='none';
+  dirty=true;
+}
+L('modeLore').onclick=()=>setMode('lore');
+L('modeLive').onclick=()=>setMode('live');
 
 /* ============================== interaction ============================== */
 let drag=null;
@@ -439,13 +625,14 @@ window.addEventListener('pointerup',e=>{
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   const w=s2w(e.clientX,e.clientY);
-  zoom*=Math.pow(1.0016,-e.deltaY); zoom=Math.max(1.5,Math.min(28,zoom));
+  const zmin=MODE==='live'?6:1.5, zmax=MODE==='live'?90:28;
+  zoom*=Math.pow(1.0016,-e.deltaY); zoom=Math.max(zmin,Math.min(zmax,zoom));
   cam.x=w.x-(e.clientX-W/2)/zoom; cam.y=w.y-(e.clientY-H/2)/zoom;
 },{passive:false});
 
 function pick(e){
   let best=null,bd=14;
-  for(const s of SYS){
+  for(const s of (MODE==='live'?liveSys:SYS)){
     const d=Math.hypot(w2sX(s.x)-e.clientX, w2sY(s.y)-e.clientY);
     if(d<bd+nodeR(s)){bd=d;best=s;}
   }
@@ -464,6 +651,8 @@ function hover(e){
   if(s.clash) flags+=`<div class="t-flag" style="color:#ff9d9d">⚔ ${s.clash.battle} (${s.clash.year})</div>`;
   if(s.capital) flags+=`<div class="t-flag" style="color:#e8d9a0">★ ${s.capital}</div>`;
   if(s.perry) flags+=`<div class="t-flag" style="color:#9ad4a0">╌ Former Perry Line system</div>`;
+  if(s.fca) flags+=`<div class="t-flag" style="color:#b9a4ff">◌ Fair Chance Act — protected developing world</div>`;
+  if(s.fcaCand) flags+=`<div class="t-flag" style="color:#9b8ac9">◌ FCA candidate — protection debated, not enacted</div>`;
   tip.innerHTML=`<div class="t-name">${s.name}</div><div class="t-aff" style="color:${col}">${AFF[s.aff].name}</div>${flags}`;
   tip.style.display='block';
   const tx=Math.min(e.clientX+16,W-280), ty=Math.min(e.clientY+14,H-120);
@@ -473,6 +662,7 @@ function click(e){
   const s=pick(e);
   if(!s){ L('detail').style.display='none'; return; }
   showDetail(s);
+  if(MODE==='live') return; // no route planning in live mode
   if(!selFrom || (selFrom&&selTo)){ selFrom=s; selTo=null; route=null; }
   else if(s!==selFrom){ selTo=s; }
   syncRouteUI(); computeRoute();
@@ -493,6 +683,8 @@ function showDetail(s){
   if(s.clash&&!s.lost) h+=`<div class="d-flag war">⚔ ${s.clash.battle} (${s.clash.year})</div>`;
   if(s.contested) h+=`<div class="d-flag">◐ ${s.contested}</div>`;
   if(s.perry) h+=`<div class="d-flag">╌ Former Perry Line buffer system, ceded ${s.perry==='XIAN'?'to the Xi’an Empire':'to the UEE'} in the 2793 Perry Line Pact.</div>`;
+  if(s.fca) h+=`<div class="d-flag fca">◌ <b>Fair Chance Act</b> — development is halted to protect an emerging species or ecosystem; the system is closed to expansion.</div>`;
+  if(s.fcaCand) h+=`<div class="d-flag fca" style="opacity:.8">◌ <b>FCA candidate</b> — Fair Chance Act protection has been proposed or debated for this system, but not enacted.</div>`;
   if(s.desc) h+=`<div class="d-desc">${s.desc}</div>`;
   L('dBody').innerHTML=h; L('detail').style.display='block';
 }

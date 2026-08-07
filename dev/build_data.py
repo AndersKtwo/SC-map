@@ -38,15 +38,22 @@ CONTESTED = {
     'Tohil': 'Frontier buffer between UEE, Xi’an and unclaimed space; haven for smugglers circumventing both authorities.',
     'Vega':  'UEE frontline system against the Vanduul; attacked in 2945.',
 }
+# Fair Chance Act: developing-world protection. The six 'DEV' systems plus Cano
+# and Tamsa (UEE-affiliated on the starmap but FCA-protected in lore).
+FCA_PROTECTED = ['Oso', 'Garron', 'Genesis', 'Kellog', 'Kallis', 'Osiris', 'Cano', 'Tamsa']
+FCA_CANDIDATE = ['Gurzil', 'Min']  # proposed/debated protection, not enacted
+# NOTE: the Banu system Ophos is NOT on the ARK Starmap — verified against the live
+# starmap API (robertsspaceindustries.com/api/starmap/bootup, Aug 2026: 90 systems,
+# no Ophos entry). It has no published coordinates or jump tunnels, so it cannot be
+# placed on this map. Revisit if CIG ever charts it.
 PERRY_UEE  = ['Gurzil', 'Horus', 'Oya', 'Tohil']
 PERRY_XIAN = ["Yā'mon", "Th.us'ūng", "Kyuk'ya", "La'uo"]
 CAPITALS = {'Sol': 'UEE capital — Earth', 'Terra': 'UEE — de facto second capital',
             'Bacchus': 'Banu — possible homeworld & trade hub', 'Rihlah': 'Xi’an — principal system open to Humans'}
 
-def clean(txt, n=420):
+def clean(txt):
     if not txt: return ''
-    txt = re.sub(r'\s+', ' ', txt).strip()
-    return (txt[:n].rsplit(' ', 1)[0] + '…') if len(txt) > n else txt
+    return re.sub(r'\s+', ' ', txt).strip()
 
 out_systems = []
 for s in systems:
@@ -71,6 +78,8 @@ for s in systems:
     if name in PERRY_UEE: rec['perry'] = 'UEE'
     if name in PERRY_XIAN: rec['perry'] = 'XIAN'
     if name in CAPITALS: rec['capital'] = CAPITALS[name]
+    if name in FCA_PROTECTED: rec['fca'] = 1
+    if name in FCA_CANDIDATE: rec['fcaCand'] = 1
     out_systems.append(rec)
 
 out_tunnels = []
@@ -87,7 +96,7 @@ AFFS = {
     'BANU': {'name': 'Banu Protectorate',      'color': '#ffce17'},
     'VNCL': {'name': 'Vanduul Clans',          'color': '#c8324f'},
     'XIAN': {'name': "Xi'an Empire (SaoXy'an)", 'color': '#52c231'},
-    'DEV':  {'name': 'In Development',         'color': '#ca922d'},
+    'DEV':  {'name': 'Fair Chance Act (FCA)',  'color': '#9b7bff'},
     'UNC':  {'name': 'Unclaimed',              'color': '#8a7f6d'},
 }
 
