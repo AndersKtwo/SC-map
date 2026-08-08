@@ -117,10 +117,19 @@ AFFS = {
 data = {'systems': out_systems, 'tunnels': out_tunnels, 'affs': AFFS}
 json.dump(data, open(HERE / 'scdata.json', 'w', encoding='utf-8', newline='\n'), ensure_ascii=False, separators=(',', ':'))
 
-# merge data into the template to produce the publishable page at the repo root
+# merge data + territory engine into the template to produce the publishable page
 template = open(HERE / 'template.html', encoding='utf-8').read()
 scdata = open(HERE / 'scdata.json', encoding='utf-8').read()
-open(HERE.parent / 'index.html', 'w', encoding='utf-8', newline='\n').write(template.replace('__DATA__', scdata))
+engine = open(HERE / 'territory.js', encoding='utf-8').read()
+page = template.replace('/*__ENGINE__*/', engine).replace('__DATA__', scdata)
+open(HERE.parent / 'index.html', 'w', encoding='utf-8', newline='\n').write(page)
 
 print('systems:', len(out_systems), 'unique tunnels:', len(out_tunnels))
 print('bytes:', len(scdata))
+
+# territory engine tests gate the build
+import subprocess, sys
+t = subprocess.run(['node', str(HERE / 'test_territory.js')], capture_output=True, text=True)
+print((t.stdout + t.stderr).strip())
+if t.returncode:
+    sys.exit('territory tests FAILED — build aborted')
