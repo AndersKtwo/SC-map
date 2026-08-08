@@ -119,8 +119,8 @@
   <h3>Sovereignties</h3>
   <div id="legendRows"></div>
   <hr>
-  <div class="lg-mark"><span class="lg-ic">●</span> Solid — inhabited (size = population)</div>
-  <div class="lg-mark"><span class="lg-ic">○</span> Hollow — uninhabited</div>
+  <div class="lg-mark"><span class="lg-ic">▣</span> Boxed name — inhabited (size = population)</div>
+  <div class="lg-mark"><span class="lg-ic">·</span> Plain name — uninhabited</div>
   <div class="lg-mark"><span class="lg-ic">⚔</span> Major battle / clash</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#c8324f">◍</span> UEE claim under Vanduul occupation</div>
   <div class="lg-mark"><span class="lg-ic">◐</span> Contested / shared presence</div>
@@ -461,7 +461,7 @@ function makeHatch(col){
 }
 const HATCH_RED  = makeHatch('rgba(200,50,79,.42)');
 const HATCH_BLUE = makeHatch('rgba(72,187,212,.42)');
-function nodeR(s){ return s.pop>0 ? 3+s.pop*0.5 : 3.6; } // size = population; uninhabited are rings
+function nodeR(s){ return s.pop>0 ? 3+s.pop*0.5 : 2.4; } // size = population; uninhabited stay quiet
 
 function draw(t){
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -607,9 +607,8 @@ function draw(t){
       ctx.fillStyle=AFF.XIAN.color; ctx.beginPath(); ctx.arc(x,y,r,Math.PI/2,-Math.PI/2); ctx.closePath(); ctx.fill();
     } else if(s.pop>0){ // settled: solid disc
       ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-    } else { // claimed / uninhabited: crisp hollow ring around a dark center
-      ctx.fillStyle='#060b14'; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-      ctx.strokeStyle=hexA(col,0.8); ctx.lineWidth=1.1; ctx.stroke();
+    } else { // uninhabited: small dim disc — the label style carries the signal
+      ctx.fillStyle=hexA(col,0.7); ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
     }
     ctx.restore();
     if(s.pop>0 || s.contested){
@@ -643,14 +642,31 @@ function draw(t){
       ctx.strokeStyle='#ffce17'; ctx.lineWidth=1.6;
       ctx.beginPath(); ctx.arc(x,y,r+6,0,6.284); ctx.stroke();
     }
-    // names
+    // names — Stellaris-style: inhabited systems get a nameplate with a
+    // faction chip; uninhabited get a plain quiet label
     if(showNames||s.capital||s===hoverSys){
-      ctx.font=((s.capital||s.pop>0)?'600 ':'')+ (s.capital?11:10) +'px "Segoe UI",sans-serif';
-      ctx.textAlign='center';
-      ctx.fillStyle='rgba(0,0,0,.65)';
-      ctx.fillText(s.name, x+0.8, y+r+11.8);
-      ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col, (s.isolated||s.pop===0)?0.55:0.95);
-      ctx.fillText(s.name, x, y+r+11);
+      const fs = s.capital?11:10;
+      ctx.font=((s.capital||s.pop>0)?'600 ':'')+ fs +'px "Segoe UI",sans-serif';
+      const ly=y+r+11;
+      if(s.pop>0){
+        const tw=ctx.measureText(s.name).width, chip=6, padX=5, bh=fs+5;
+        const bw=tw+chip+padX*2+4, bx=x-bw/2, by=ly-fs-1;
+        ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,3);
+        ctx.fillStyle='rgba(8,14,24,.82)'; ctx.fill();
+        ctx.strokeStyle=hexA(col, s.isolated?0.3:0.55); ctx.lineWidth=1; ctx.stroke();
+        ctx.fillStyle=s.isolated?hexA(col,0.6):col;
+        ctx.fillRect(bx+padX, by+(bh-chip)/2, chip, chip);
+        ctx.textAlign='left';
+        ctx.fillStyle = s===hoverSys ? '#fff' : `rgba(226,238,248,${s.isolated?0.6:0.95})`;
+        ctx.fillText(s.name, bx+padX+chip+4, ly);
+        ctx.textAlign='center';
+      } else {
+        ctx.textAlign='center';
+        ctx.fillStyle='rgba(0,0,0,.65)';
+        ctx.fillText(s.name, x+0.8, ly+0.8);
+        ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col,0.55);
+        ctx.fillText(s.name, x, ly);
+      }
     }
   }
 }
