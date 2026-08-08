@@ -119,7 +119,7 @@
   <h3>Sovereignties</h3>
   <div id="legendRows"></div>
   <hr>
-  <div class="lg-mark"><span class="lg-ic">●</span> Solid — inhabited</div>
+  <div class="lg-mark"><span class="lg-ic">●</span> Solid — inhabited (size = population)</div>
   <div class="lg-mark"><span class="lg-ic">○</span> Hollow — uninhabited</div>
   <div class="lg-mark"><span class="lg-ic">⚔</span> Major battle / clash</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#c8324f">◍</span> UEE claim under Vanduul occupation</div>
@@ -461,7 +461,7 @@ function makeHatch(col){
 }
 const HATCH_RED  = makeHatch('rgba(200,50,79,.42)');
 const HATCH_BLUE = makeHatch('rgba(72,187,212,.42)');
-function nodeR(s){ return Math.max(2.4, 2.2+s.pop*0.28); }
+function nodeR(s){ return s.pop>0 ? 3+s.pop*0.5 : 2.6; } // size = population; uninhabited stay small
 
 function draw(t){
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -597,17 +597,18 @@ function draw(t){
       ctx.strokeStyle='rgba(155,123,255,.35)'; ctx.lineWidth=1; ctx.setLineDash([2,5]);
       ctx.beginPath(); ctx.arc(x,y,r+4.5,0,6.284); ctx.stroke(); ctx.setLineDash([]);
     }
-    // node
+    // node — glow scales with population so inhabited space lights up
     ctx.save();
-    ctx.shadowColor=col; ctx.shadowBlur=(s===hoverSys||s===selFrom||s===selTo)?16:8;
+    ctx.shadowColor=col;
+    ctx.shadowBlur=(s===hoverSys||s===selFrom||s===selTo)?18 : s.pop>0? 7+s.pop*1.1 : 4;
     if(s.contested && s.name==='Oya'){ // split disc UEE/Xi'an
       ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,Math.PI/2); ctx.closePath(); ctx.fill();
       ctx.fillStyle=AFF.XIAN.color; ctx.beginPath(); ctx.arc(x,y,r,Math.PI/2,-Math.PI/2); ctx.closePath(); ctx.fill();
     } else if(s.pop>0){ // settled: solid disc
       ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-    } else { // claimed / uninhabited: hollow ring
+    } else { // claimed / uninhabited: hollow ring, dimmed
       ctx.fillStyle='#0a1220'; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-      ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.strokeStyle=hexA(col,0.6); ctx.lineWidth=1.4; ctx.stroke();
     }
     ctx.restore();
     if(s.pop>0 || s.contested){
@@ -647,7 +648,7 @@ function draw(t){
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.65)';
       ctx.fillText(s.name, x+0.8, y+r+11.8);
-      ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col, s.isolated?0.55:0.95);
+      ctx.fillStyle = s===hoverSys ? '#fff' : hexA(col, (s.isolated||s.pop===0)?0.55:0.95);
       ctx.fillText(s.name, x, y+r+11);
     }
   }
