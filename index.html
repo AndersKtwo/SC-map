@@ -270,6 +270,8 @@ const TERRITORY = (function(){
   const LANE_STEP = 4;        // lane seeds interpolated this often along every jump lane
   const LANE_CLEAR = 8;       // void seeds also excluded this close to a lane seed (corridor width)
   const POCKET = 5.6;         // guaranteed neutral radius around unclaimed systems
+  const UNCLAIMED_WEIGHT = 3; // beyond POCKET, unclaimed influence decays this much
+                              // faster, so surrounded systems keep only a small halo
 
   /* the ONE ownership resolver — first match wins */
   function ownerOf(s, style){
@@ -290,6 +292,8 @@ const TERRITORY = (function(){
     (tunnels || []).forEach(t => {
       const a = byId[t.a], b = byId[t.b];
       if(!a || !b) return;
+      // lanes with an unclaimed endpoint get no seeds — no null corridors
+      if(ownerOf(a, style) === null || ownerOf(b, style) === null) return;
       const d = Math.hypot(b.x-a.x, b.y-a.y), n = Math.floor(d/LANE_STEP);
       for(let k=1; k<n; k++){
         const f = k/n, sys = f < 0.5 ? a : b;
@@ -332,7 +336,8 @@ const TERRITORY = (function(){
       let best=null, bd=Infinity;
       for(const sd of seeds){
         let d = Math.hypot(sd.x-x, sd.y-y);
-        if(sd.sys && !sd.lane && sd.owner===null) d = Math.max(0, d-POCKET);
+        // unclaimed systems: guaranteed pocket, then rapidly decaying influence
+        if(sd.sys && !sd.lane && sd.owner===null) d = Math.max(0, d-POCKET)*UNCLAIMED_WEIGHT;
         if(d<bd){ bd=d; best=sd; }
       }
       return best;

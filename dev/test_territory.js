@@ -64,6 +64,45 @@ for(const style of ['claim', 'local']){
     const lb=label[i+j*nx];
     if(lb>=0) (members[lb]=members[lb]||[]).push(s.name);
   }
+  // interior unclaimed enclaves must be small pockets: flood-fill each
+  // unclaimed system's contiguous non-owned region; if it does not reach the
+  // outer map void, its area is capped at N * pi * 8^2 (N = unclaimed systems in it)
+  {
+    const rid=new Int32Array(nx*ny).fill(-1);
+    let nr=0;
+    const touchesEdge=[];
+    for(let k0=0;k0<nx*ny;k0++){
+      if(grid[k0]!==null || rid[k0]>=0) continue;
+      const r=nr++; let edge=false;
+      const stack=[k0]; rid[k0]=r;
+      while(stack.length){
+        const k=stack.pop(), i=k%nx, j=(k-i)/nx;
+        if(i===0||j===0||i===nx-1||j===ny-1) edge=true;
+        for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+          const i2=i+di, j2=j+dj;
+          if(i2<0||j2<0||i2>=nx||j2>=ny) continue;
+          const k2=i2+j2*nx;
+          if(rid[k2]<0 && grid[k2]===null){ rid[k2]=r; stack.push(k2); }
+        }
+      }
+      touchesEdge[r]=edge;
+    }
+    const area=new Float64Array(nr), uncNames={};
+    for(let k=0;k<nx*ny;k++) if(rid[k]>=0) area[rid[k]]+=GRID*GRID;
+    for(const s of DATA.systems.filter(s=>s.aff==='UNC')){
+      const i=Math.round((s.x-minX)/GRID), j=Math.round((s.y-minY)/GRID);
+      const r=rid[i+j*nx];
+      if(r>=0) (uncNames[r]=uncNames[r]||[]).push(s.name);
+    }
+    for(const [r, names] of Object.entries(uncNames)){
+      if(touchesEdge[r]) continue; // frontier neutral space is exempt
+      const cap = names.length * Math.PI * 8*8;
+      if(area[r] > cap){
+        console.error(`FAIL enclave ${style}: region {${names.join(', ')}} area ${area[r].toFixed(0)} > cap ${cap.toFixed(0)}`);
+        fails++;
+      } else console.log(`  enclave ${style}: {${names.join(', ')}} area ${area[r].toFixed(0)} <= ${cap.toFixed(0)} ok`);
+    }
+  }
   for(const [fac, budget] of Object.entries(ISLAND_BUDGET)){
     const n=counts[fac]||0;
     const ok = Array.isArray(budget) ? (n>=budget[0] && n<=budget[1]) : n<=budget;
