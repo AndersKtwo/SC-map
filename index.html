@@ -602,7 +602,7 @@ function makeHatch(col){
 }
 const HATCH_RED  = makeHatch('rgba(200,50,79,.42)');
 const HATCH_BLUE = makeHatch('rgba(72,187,212,.42)');
-function nodeR(s){ return s.pop>0 ? 3+s.pop*0.5 : 2.6; } // size = population; uninhabited stay small
+function nodeR(s){ return s.pop>0 ? 3+s.pop*0.5 : 3.6; } // size = population; uninhabited are rings
 
 function draw(t){
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -738,18 +738,19 @@ function draw(t){
       ctx.strokeStyle='rgba(155,123,255,.35)'; ctx.lineWidth=1; ctx.setLineDash([2,5]);
       ctx.beginPath(); ctx.arc(x,y,r+4.5,0,6.284); ctx.stroke(); ctx.setLineDash([]);
     }
-    // node — glow scales with population so inhabited space lights up
+    // node — glow scales with population so inhabited space lights up;
+    // uninhabited get none so the empty center stays crisp
     ctx.save();
     ctx.shadowColor=col;
-    ctx.shadowBlur=(s===hoverSys||s===selFrom||s===selTo)?18 : s.pop>0? 7+s.pop*1.1 : 4;
+    ctx.shadowBlur=(s===hoverSys||s===selFrom||s===selTo)?18 : s.pop>0? 7+s.pop*1.1 : 0;
     if(s.contested && s.name==='Oya'){ // split disc UEE/Xi'an
       ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,Math.PI/2); ctx.closePath(); ctx.fill();
       ctx.fillStyle=AFF.XIAN.color; ctx.beginPath(); ctx.arc(x,y,r,Math.PI/2,-Math.PI/2); ctx.closePath(); ctx.fill();
     } else if(s.pop>0){ // settled: solid disc
       ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-    } else { // claimed / uninhabited: hollow ring, dimmed
-      ctx.fillStyle='#0a1220'; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
-      ctx.strokeStyle=hexA(col,0.6); ctx.lineWidth=1.4; ctx.stroke();
+    } else { // claimed / uninhabited: crisp hollow ring around a dark center
+      ctx.fillStyle='#060b14'; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
+      ctx.strokeStyle=hexA(col,0.8); ctx.lineWidth=1.1; ctx.stroke();
     }
     ctx.restore();
     if(s.pop>0 || s.contested){
