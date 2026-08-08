@@ -268,31 +268,27 @@ let OCCUPATION_STYLE = 'claim';
 function setOccupation(st){ OCCUPATION_STYLE = st; buildTerritories(); dirty = true; }
 
 /* every point in space asks the engine who owns it — nothing is hand-painted */
-let seedAt = null;
-function territoryOwnerAt(x, y){ const sd = seedAt(x, y); return sd ? sd.owner : null; }
+let terrGrid = null;
+function territoryOwnerAt(x, y){
+  const g=terrGrid;
+  const i=Math.round((x-g.minX)/GRID), j=Math.round((y-g.minY)/GRID);
+  if(i<0||j<0||i>=g.nx||j>=g.ny) return null;
+  return g.owners[i+j*g.nx];
+}
 
 function buildTerritories(){
-  seedAt = TERRITORY.makeOwnerAt(SYS, OCCUPATION_STYLE);
-  const nx = Math.ceil((maxX-minX)/GRID)+2, ny = Math.ceil((maxY-minY)/GRID)+2;
-  const owner = new Int8Array(nx*ny).fill(-1);
-  const occ = new Uint8Array(nx*ny); // cells whose nearest seed is an occupied system
-  for(let j=0;j<ny;j++){
-    for(let i=0;i<nx;i++){
-      const sd = seedAt(minX+i*GRID, minY+j*GRID);
-      owner[i+j*nx] = sd && sd.owner ? BLOBS.indexOf(sd.owner) : -1;
-      if(OCCUPATION_STYLE==='claim' && sd && sd.sys && sd.sys.lost) occ[i+j*nx]=1;
-    }
-  }
+  const g = terrGrid = TERRITORY.computeGrid(SYS, DATA.tunnels, OCCUPATION_STYLE, PAD, GRID);
+  const {nx, ny, owners, occ} = g;
   territories={};
-  BLOBS.forEach((affCode,b)=>{
-    const mask=(i,j)=> i>=0&&j>=0&&i<nx&&j<ny&&owner[i+j*nx]===b ? 1:0;
-    territories[affCode]=marchingSquares(mask,nx,ny).map(c=>smooth(smooth(c)).map(p=>({x:minX+p.x*GRID, y:minY+p.y*GRID})));
+  BLOBS.forEach(affCode=>{
+    const mask=(i,j)=> i>=0&&j>=0&&i<nx&&j<ny&&owners[i+j*nx]===affCode ? 1:0;
+    territories[affCode]=marchingSquares(mask,nx,ny).map(c=>smooth(smooth(smooth(c))).map(p=>({x:g.minX+p.x*GRID, y:g.minY+p.y*GRID})));
   });
-  // 'claim' mode: hatch the Voronoi cells of the occupied systems
+  // 'claim' mode: hatch the cells of the occupied systems
   occContours=[];
   if(OCCUPATION_STYLE==='claim'){
     const omask=(i,j)=> i>=0&&j>=0&&i<nx&&j<ny&&occ[i+j*nx]===1 ? 1:0;
-    occContours=marchingSquares(omask,nx,ny).map(c=>smooth(smooth(c)).map(p=>({x:minX+p.x*GRID, y:minY+p.y*GRID})));
+    occContours=marchingSquares(omask,nx,ny).map(c=>smooth(smooth(smooth(c))).map(p=>({x:g.minX+p.x*GRID, y:g.minY+p.y*GRID})));
   }
   buildBorderRuns();
 }

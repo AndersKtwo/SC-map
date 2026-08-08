@@ -129,7 +129,10 @@ print('bytes:', len(scdata))
 
 # territory engine tests gate the build
 import subprocess, sys
-t = subprocess.run(['node', str(HERE / 'test_territory.js')], capture_output=True, text=True)
-print((t.stdout + t.stderr).strip())
+t = subprocess.run(['node', str(HERE / 'test_territory.js')], capture_output=True,
+                   text=True, encoding='utf-8', errors='replace')
+out = (t.stdout or '') + (t.stderr or '')
+try: print(out.strip())
+except UnicodeEncodeError: print(out.strip().encode('ascii', 'replace').decode())
 if t.returncode:
     sys.exit('territory tests FAILED — build aborted')
