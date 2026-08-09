@@ -124,7 +124,6 @@
   <div class="lg-mark"><span class="lg-ic">⚔</span> Major battle / clash</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#c8324f">◍</span> UEE claim under Vanduul occupation</div>
   <div class="lg-mark"><span class="lg-ic">◐</span> Contested / shared presence</div>
-  <div class="lg-mark"><span class="lg-ic" style="color:#9ad4a0">╌</span> Former Perry Line (dissolved 2793)</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff">◌</span> Fair Chance Act protected</div>
   <div class="lg-mark"><span class="lg-ic" style="color:#9b7bff;opacity:.45">◌</span> FCA candidate (debated)</div>
   <hr>
@@ -154,7 +153,6 @@
   </div>
   <label><input type="checkbox" id="lyNames" checked> System names</label>
   <label><input type="checkbox" id="lyBattles" checked> Battles &amp; conquests</label>
-  <label><input type="checkbox" id="lyPerry" checked> Perry Line</label>
 </div>
 
 <div class="hud" id="route">
@@ -365,21 +363,6 @@ function smooth(pts){ // Chaikin
   return out;
 }
 
-/* ============================== Perry Line ============================== */
-let perryPts=[];
-function buildPerry(){
-  const xian = SYS.filter(s=>s.perry==='XIAN'), uee = SYS.filter(s=>s.perry==='UEE');
-  const mids = xian.map(x=>{
-    let best=null,bd=1e9;
-    uee.forEach(u=>{const d=(u.x-x.x)**2+(u.y-x.y)**2; if(d<bd){bd=d;best=u;}});
-    return {x:(x.x+best.x)/2, y:(x.y+best.y)/2};
-  });
-  mids.sort((a,b)=>a.y-b.y);
-  // extend line beyond first/last
-  const ext=(p,q,f)=>({x:p.x+(p.x-q.x)*f, y:p.y+(p.y-q.y)*f});
-  perryPts=[ext(mids[0],mids[1],0.35), ...mids, ext(mids[mids.length-1],mids[mids.length-2],0.35)];
-}
-
 /* ============================== routing ============================== */
 const adj={}; // id -> [{to,size,dist}]
 DATA.tunnels.forEach(t=>{
@@ -412,7 +395,7 @@ function findRoute(fromId,toId,minSize){
 /* ============================== render ============================== */
 let dirty=true, hoverSys=null, selFrom=null, selTo=null, route=null;
 const L=id=>document.getElementById(id);
-const layers={borders:'lyBorders',names:'lyNames',battles:'lyBattles',perry:'lyPerry',
+const layers={borders:'lyBorders',names:'lyNames',battles:'lyBattles',
               laneL:'lyLaneL',laneM:'lyLaneM',laneS:'lyLaneS'};
 Object.values(layers).forEach(id=>L(id).addEventListener('change',()=>dirty=true));
 const on=k=>L(layers[k]).checked;
@@ -544,18 +527,6 @@ function draw(t){
         ctx.stroke(); ctx.setLineDash([]);
       }
     }
-  }
-  // Perry line
-  if(on('perry')){
-    ctx.save();
-    ctx.strokeStyle='rgba(154,212,160,.55)'; ctx.lineWidth=1.4; ctx.setLineDash([7,6]);
-    ctx.beginPath();
-    perryPts.forEach((p,i)=> i? ctx.lineTo(w2sX(p.x),w2sY(p.y)) : ctx.moveTo(w2sX(p.x),w2sY(p.y)));
-    ctx.stroke(); ctx.setLineDash([]);
-    const mp=perryPts[Math.floor(perryPts.length/2)];
-    ctx.fillStyle='rgba(154,212,160,.75)'; ctx.font='10px "Segoe UI",sans-serif'; ctx.textAlign='center';
-    ctx.fillText('PERRY LINE · dissolved 2793', w2sX(mp.x)+6, w2sY(mp.y)-8);
-    ctx.restore();
   }
   // jump network — three unmistakable tiers: S dotted, M thin solid, L bold artery
   if(laneState()!=='none'){
@@ -917,7 +888,7 @@ function computeRoute(){
 
 /* ============================== go ============================== */
 window.addEventListener('resize',resize);
-buildTerritories(); buildPerry(); resize();
+buildTerritories(); resize();
 requestAnimationFrame(loop);
 </script>
 </body>
