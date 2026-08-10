@@ -898,6 +898,13 @@ function drawLive(){
 
 /* ============================== system view ============================== */
 let VIEW='galaxy', sysStack=[], savedView=null, sysHit=[];
+/* system-view camera: same pan/zoom feel as the galaxy */
+let svCam={x:0,y:0}, svZoom=1, svFit=1, svZ=1;
+const SV_RMAX=410, SV_RJ=460; // system-space units (≈px at fit zoom)
+function resetSysCam(){
+  svFit=(Math.min(W,H)/2-40)/SV_RJ;
+  svCam={x:0,y:0}; svZoom=svFit;
+}
 const ROMANV={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10,XI:11,XII:12,XIII:13,XIV:14};
 function romanOf(d){ for(const tk of d.split(' ')) if(ROMANV[tk]) return ROMANV[tk]; return null; }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
@@ -907,6 +914,7 @@ function openSystem(s){
   if(VIEW==='galaxy'){ savedView={cam:{x:cam.x,y:cam.y}, zoom}; document.body.classList.add('sysview'); }
   sysStack.push(s); VIEW='system';
   hoverSys=null; tip.style.display='none'; L('detail').style.display='none';
+  resetSysCam();
   updateCrumb(); dirty=true;
 }
 function closeSystemView(){
@@ -916,7 +924,7 @@ function closeSystemView(){
   L('crumb').style.display='none';
   dirty=true;
 }
-function backOne(){ if(sysStack.length>1){ sysStack.pop(); updateCrumb(); dirty=true; } else closeSystemView(); }
+function backOne(){ if(sysStack.length>1){ sysStack.pop(); resetSysCam(); updateCrumb(); dirty=true; } else closeSystemView(); }
 function updateCrumb(){
   const c=L('crumb');
   let h=`<span class="seg" data-i="-1">The Verse</span>`;
@@ -926,7 +934,7 @@ function updateCrumb(){
   c.innerHTML=h; c.style.display='block';
   c.querySelectorAll('.seg').forEach(el=>el.onclick=()=>{
     const i=+el.dataset.i;
-    if(i<0) closeSystemView(); else { sysStack=sysStack.slice(0,i+1); updateCrumb(); dirty=true; }
+    if(i<0) closeSystemView(); else { sysStack=sysStack.slice(0,i+1); resetSysCam(); updateCrumb(); dirty=true; }
   });
 }
 window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&VIEW==='system') backOne(); });
@@ -966,7 +974,8 @@ function drawSysView(t){
   const s=sysStack[sysStack.length-1];
   const bodies=s.bodies||[];
   sysHit=[];
-  const cx=W/2, cy=H/2+12, seed=hashStr(s.name);
+  svZ=svZoom; // current scale, used by the planet renderer too
+  const cx=W/2-svCam.x*svZ, cy=H/2+12-svCam.y*svZ, seed=hashStr(s.name);
   const byRef={}; // designation/name → placed object
   const place=(b,x,y,r)=>{ const o={b,x,y,r}; byRef[b.d]=o; if(b.n) byRef[b.n]=o; sysHit.push(o); return o; };
   const reg=o=>{ byRef[o.b.d]=o; if(o.b.n) byRef[o.b.n]=o; return o; };
@@ -983,25 +992,25 @@ function drawSysView(t){
   // center object(s)
   const primaries=stars.filter(st=>!st.p);
   const noStar = stars.length===0;
-  const R0=95, Rmax=Math.min(W,H)/2-95, Rj=Math.min(W,H)/2-48;
+  const R0=95*svZ, Rmax=SV_RMAX*svZ, Rj=SV_RJ*svZ;
   const n=ordered.length, ringR=k=> n<=1 ? (R0+Rmax)/2 : R0 + k*(Rmax-R0)/(n-1);
 
   // ---- central star(s) / black hole / rogue planet
   const drawStar=(b,x,y,scale)=>{
     if(b.t==='bh'){ // Tamsa: accretion disk, no star glow
       ctx.save();
-      ctx.strokeStyle='rgba(255,180,90,.75)'; ctx.lineWidth=3.5;
-      ctx.beginPath(); ctx.ellipse(x,y,34,10,-0.4,0,6.284); ctx.stroke();
-      ctx.strokeStyle='rgba(255,220,160,.35)'; ctx.lineWidth=7;
-      ctx.beginPath(); ctx.ellipse(x,y,40,13,-0.4,0,6.284); ctx.stroke();
-      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(x,y,13,0,6.284); ctx.fill();
+      ctx.strokeStyle='rgba(255,180,90,.75)'; ctx.lineWidth=Math.max(2,3.5*svZ);
+      ctx.beginPath(); ctx.ellipse(x,y,34*svZ,10*svZ,-0.4,0,6.284); ctx.stroke();
+      ctx.strokeStyle='rgba(255,220,160,.35)'; ctx.lineWidth=Math.max(3,7*svZ);
+      ctx.beginPath(); ctx.ellipse(x,y,40*svZ,13*svZ,-0.4,0,6.284); ctx.stroke();
+      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(x,y,13*svZ,0,6.284); ctx.fill();
       ctx.strokeStyle='rgba(255,240,220,.9)'; ctx.lineWidth=1.4;
-      ctx.beginPath(); ctx.arc(x,y,13.5,0,6.284); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,y,13.5*svZ,0,6.284); ctx.stroke();
       ctx.restore();
-      place(b,x,y,40);
+      place(b,x,y,Math.max(40*svZ,18));
       return;
     }
-    const sty=starStyle(b.st), r=sty.r*(scale||1);
+    const sty=starStyle(b.st), r=Math.max(sty.r*(scale||1)*svZ, 3.5);
     ctx.save();
     ctx.shadowColor=sty.col; ctx.shadowBlur=(sty.glow||20)*(scale||1);
     if(/Variable/i.test(b.st||'')) ctx.globalAlpha=0.75+0.25*Math.sin(t/500);
@@ -1015,16 +1024,16 @@ function drawSysView(t){
     const b=ordered.shift();
     reg(drawPlanetAt(b, cx, cy, 2.2));
   } else if(primaries.length===2){
-    drawStar(primaries[0], cx-38, cy, 0.9);
-    drawStar(primaries[1], cx+38, cy, 0.75);
+    drawStar(primaries[0], cx-38*svZ, cy, 0.9);
+    drawStar(primaries[1], cx+38*svZ, cy, 0.75);
   } else if(primaries.length){
     drawStar(primaries[0], cx, cy, 1);
   }
   // companion stars on tight orbit (Tyrol B, Kyuk'ya B)
   stars.filter(st=>st.p).forEach((b,i)=>{
     ctx.strokeStyle='rgba(140,170,205,.25)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.arc(cx,cy,52,0,6.284); ctx.stroke();
-    const a=-0.9+i; drawStar(b, cx+52*Math.cos(a), cy+52*Math.sin(a), 0.45);
+    ctx.beginPath(); ctx.arc(cx,cy,52*svZ,0,6.284); ctx.stroke();
+    const a=-0.9+i; drawStar(b, cx+52*svZ*Math.cos(a), cy+52*svZ*Math.sin(a), 0.45);
   });
 
   // ---- orbit rings + top-level objects
@@ -1036,7 +1045,7 @@ function drawSysView(t){
       const multi=/Protoplanetary/i.test(b.d);
       ctx.strokeStyle='rgba(150,170,195,.3)'; ctx.lineWidth=multi?1:4; ctx.setLineDash([2,7]);
       ctx.beginPath(); ctx.arc(cx,cy,r,0,6.284); ctx.stroke();
-      if(multi){ for(const dr of [-7,7]){ ctx.beginPath(); ctx.arc(cx,cy,r+dr,0,6.284); ctx.stroke(); } }
+      if(multi){ for(const dr of [-7*svZ,7*svZ]){ ctx.beginPath(); ctx.arc(cx,cy,r+dr,0,6.284); ctx.stroke(); } }
       ctx.setLineDash([]);
       const lx=cx+r*Math.cos(ang), ly=cy+r*Math.sin(ang);
       ctx.fillStyle='rgba(150,170,195,.6)'; ctx.font='9.5px "Segoe UI",sans-serif'; ctx.textAlign='center';
@@ -1047,8 +1056,8 @@ function drawSysView(t){
         let rs2=seed; const rnd=()=>{rs2=(rs2*16807)%2147483647; return rs2/2147483647;};
         ctx.fillStyle='rgba(160,190,255,.8)';
         for(let i=0;i<26;i++){
-          const da=ang-0.5+rnd(), dr=r-10+rnd()*20;
-          ctx.beginPath(); ctx.arc(cx+dr*Math.cos(da), cy+dr*Math.sin(da), 0.8+rnd()*1.6, 0, 6.284); ctx.fill();
+          const da=ang-0.5+rnd(), dr=r+(-10+rnd()*20)*svZ;
+          ctx.beginPath(); ctx.arc(cx+dr*Math.cos(da), cy+dr*Math.sin(da), (0.8+rnd()*1.6)*Math.max(1,svZ*0.7), 0, 6.284); ctx.fill();
         }
       }
     } else {
@@ -1061,23 +1070,24 @@ function drawSysView(t){
   // planets orbiting other planets (RSI quirk, e.g. Pyro IV around Pyro V)
   bodies.filter(b=>b.t==='planet' && b.p && !isStarName(b.p)).forEach((b,i)=>{
     const p=byRef[b.p]; if(!p) return;
+    const d=p.r+18*svZ;
     ctx.strokeStyle='rgba(140,170,205,.18)'; ctx.lineWidth=0.8;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r+18,0,6.284); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x,p.y,d,0,6.284); ctx.stroke();
     const a=0.8+i*2;
-    reg(drawPlanetAt(b, p.x+(p.r+18)*Math.cos(a), p.y+(p.r+18)*Math.sin(a), 0.65));
+    reg(drawPlanetAt(b, p.x+d*Math.cos(a), p.y+d*Math.sin(a), 0.65));
   });
   // ---- moons, stations, planetary rings, POI (parented objects)
   bodies.filter(b=>b.t==='moon').forEach(b=>{
     const p=parentOf(b); if(!p) return;
     const idx=bodies.filter(x=>x.t==='moon'&&x.p===b.p).indexOf(b);
     const cnt=bodies.filter(x=>x.t==='moon'&&x.p===b.p).length;
-    const mr=p.r+10+3*(idx%2);
+    const mr=p.r+(10+3*(idx%2))*svZ;
     ctx.strokeStyle='rgba(140,170,205,.18)'; ctx.lineWidth=0.8;
     ctx.beginPath(); ctx.arc(p.x,p.y,mr,0,6.284); ctx.stroke();
     const a=-1.2+idx*(6.284/Math.max(3,cnt));
     const x=p.x+mr*Math.cos(a), y=p.y+mr*Math.sin(a);
     ctx.fillStyle=b.h?'#bfe8c8':'#9fb0be';
-    ctx.beginPath(); ctx.arc(x,y,2.2,0,6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,Math.max(2.2*svZ,1.6),0,6.284); ctx.fill();
     if(b.n){ ctx.fillStyle='rgba(190,210,228,.75)'; ctx.font='8.5px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText(b.n,x,y-5); }
     place(b,x,y,4);
   });
@@ -1092,15 +1102,15 @@ function drawSysView(t){
     let rs2=hashStr(b.d); const rnd=()=>{rs2=(rs2*16807)%2147483647; return rs2/2147483647;};
     ctx.fillStyle='rgba(200,180,150,.7)';
     for(let i=0;i<14;i++){
-      const a=rnd()*6.284, d=p.r+4+rnd()*11;
-      ctx.beginPath(); ctx.arc(p.x+d*Math.cos(a), p.y+d*Math.sin(a), 0.7+rnd()*1.4, 0, 6.284); ctx.fill();
+      const a=rnd()*6.284, d=p.r+(4+rnd()*11)*svZ;
+      ctx.beginPath(); ctx.arc(p.x+d*Math.cos(a), p.y+d*Math.sin(a), (0.7+rnd()*1.4)*Math.max(1,svZ*0.7), 0, 6.284); ctx.fill();
     }
     place(b,p.x,p.y-p.r-9,6);
   });
   bodies.filter(b=>b.t==='station').forEach((b,i)=>{
     const p=parentOf(b);
-    const bx=p? p.x+(p.r+13)*Math.cos(2+i) : cx+60*Math.cos(1.1+i*1.3);
-    const by=p? p.y+(p.r+13)*Math.sin(2+i) : cy+60*Math.sin(1.1+i*1.3);
+    const bx=p? p.x+(p.r+13*svZ)*Math.cos(2+i) : cx+60*svZ*Math.cos(1.1+i*1.3);
+    const by=p? p.y+(p.r+13*svZ)*Math.sin(2+i) : cy+60*svZ*Math.sin(1.1+i*1.3);
     ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.PI/4);
     ctx.fillStyle='rgba(160,200,225,.85)'; ctx.fillRect(-2.6,-2.6,5.2,5.2);
     ctx.restore();
@@ -1119,7 +1129,7 @@ function drawSysView(t){
 
 /* planet renderer with subtype styling + specials */
 function drawPlanetAt(b,x,y,scale){
-  const sty=planetStyle(b.st), r=sty.r*scale;
+  const sty=planetStyle(b.st), r=Math.max(sty.r*scale*svZ, 2.6);
   const isOya3=/^Oya III$/.test(b.d);
   const shattered=/^Hades IV$/.test(b.d);
   ctx.save();
@@ -1260,10 +1270,12 @@ L('modeLive').onclick=()=>setMode('live');
 let drag=null;
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};canvas.classList.add('dragging');});
 window.addEventListener('pointermove',e=>{
-  if(drag && VIEW==='galaxy'){
+  if(drag){
     const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
     if(Math.abs(dx)+Math.abs(dy)>3) drag.moved=true;
-    cam.x-=dx/zoom; cam.y-=dy/zoom; drag.x=e.clientX; drag.y=e.clientY;
+    if(VIEW==='system'){ svCam.x-=dx/svZoom; svCam.y-=dy/svZoom; }
+    else { cam.x-=dx/zoom; cam.y-=dy/zoom; }
+    drag.x=e.clientX; drag.y=e.clientY;
   } else hover(e);
 });
 let clickTimer=null, pendingSys=null;
@@ -1289,7 +1301,13 @@ window.addEventListener('pointerup',e=>{
 });
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
-  if(VIEW==='system') return; // system view is a static schematic
+  if(VIEW==='system'){ // zoom to cursor, galaxy-style
+    const wx=(e.clientX-W/2)/svZoom+svCam.x, wy=(e.clientY-(H/2+12))/svZoom+svCam.y;
+    svZoom*=Math.pow(1.0016,-e.deltaY);
+    svZoom=Math.max(svFit*0.55, Math.min(16, svZoom));
+    svCam.x=wx-(e.clientX-W/2)/svZoom; svCam.y=wy-(e.clientY-(H/2+12))/svZoom;
+    return;
+  }
   const w=s2w(e.clientX,e.clientY);
   const zmin=MODE==='live'?6:1.5, zmax=MODE==='live'?90:28;
   zoom*=Math.pow(1.0016,-e.deltaY); zoom=Math.max(zmin,Math.min(zmax,zoom));
