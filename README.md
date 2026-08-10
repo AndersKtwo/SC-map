@@ -12,6 +12,8 @@ The map has two modes. The default **Lore atlas** covers all 90 star systems of 
 
 On top of the base map: a route planner (click two systems or use the dropdowns) that respects jump-point sizes — try Sol → Terra restricted to large ships and you'll get the canonical six-jump trade lane through Davien, Kilian, Ellis, Magnus, and Stanton. Battle and conquest markers tell the story of the Vanduul war: Orion (fell 2712), Tiber (2736), Virgil (2736), and Caliban (2884) carry "former UEE" rings, Vega wears its 2945 battle marker. The dissolved Perry Line runs as a dashed historic border through the eight transitional systems, Oya renders as a split UEE/Xi'an disc for the shared sovereignty of Oya III, and every system opens a lore card with population, economy, danger ratings, and the full ARK Starmap description. Fair Chance Act systems — developing worlds closed to expansion — get their own violet category and rings, including the FCA-protected but UEE-affiliated Cano and Tamsa, with fainter markers for the debated candidates Gurzil and Min; since the FCA is UEE law, these systems sit inside the blue border as protected enclaves rather than holes in the Empire. Every system also reads as inhabited (solid disc, bold label) or uninhabited (hollow ring) straight from its population data, and the four systems the Vanduul took from the UEE — Orion, Tiber, Virgil, Caliban — carry a candy-stripe occupation overlay marking them as UEE claims under Vanduul control. Jump lanes come in three unmistakable tiers (dotted small, thin medium, bold large — the Sol–Terra trade artery reads at a glance), capitals use a tiered glyph taxonomy that says exactly what each claim is (political capital, de facto hub, homeworld, gateway, council seat — the nomadic Vanduul get none), and lost Oretani hangs off the map's one severed lane, its only jump point collapsed in 2485. Frontier borders dissolve where they face uncharted space: only edges facing charted territory render solid, so the Xi'an Empire opens toward its own interior and the Vanduul frontier bleeds into the dark. Current Xi'an naming is applied throughout (Kai'pua, Th.us'ūng, Yā'mon, Kyuk'ya, La'uo, Ē'aluth, T.āl, Ail'ka).
 
+Double-click any system (or use the detail card's "Open system ▸" button) to drop into its **system view** — an orbital diagram of everything the ARK Starmap knows about it: stars tinted by class, planets styled by subtype, moons, stations, belts, and jump points placed at the true bearing of their destination and clickable to travel system-to-system, Elite-style, with a breadcrumb trail home. All 90 systems are covered (~860 objects), including the special cases: Tamsa's black hole, Min's starless rogue planet, the Synthworld construct, Odin's shattered Coil, and the Vanduul systems' classified NO SCAN DATA state. Active routes light up their entry and exit jump points in gold.
+
 Everything is one self-contained HTML file — no build step, no dependencies, no backend.
 
 ## Hosting it yourself
@@ -27,6 +29,8 @@ Everything is one self-contained HTML file — no build step, no dependencies, n
 ```
 python dev/build_data.py
 ```
+
+The build parses the per-system inventory from `dev/SYSTEM_VIEW_HANDOFF.md` (Part B), runs the territory engine tests (`dev/test_territory.js`, via node), and fails on any malformed data. `dev/test_systemviews.py` (playwright) additionally opens all 90 system views headlessly and asserts zero page errors.
 
 ## Data & lore sources
 

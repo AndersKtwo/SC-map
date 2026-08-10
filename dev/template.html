@@ -32,6 +32,19 @@
   #mode button.active{background:rgba(72,187,212,.15); border-color:rgba(72,187,212,.45); color:var(--accent)}
   #mode button:hover:not(.active){color:var(--text)}
   body.live #legend, body.live #layers, body.live #route{display:none}
+  /* System view */
+  #crumb{display:none; top:14px; left:16px; padding:10px 16px; font-size:12.5px; letter-spacing:2px;
+    text-transform:uppercase; z-index:12}
+  #crumb span.seg{cursor:pointer; color:var(--dim)}
+  #crumb span.seg:hover{color:#fff}
+  #crumb span.cur{color:#e8f2fa}
+  #crumb span.sep{color:#3d5266; margin:0 7px}
+  body.sysview .hud, body.sysview #mode{display:none}
+  body.sysview #crumb{display:block}
+  #detail .d-open{display:block; margin-top:10px; width:100%; background:rgba(72,187,212,.15);
+    color:var(--accent); border:1px solid rgba(72,187,212,.45); border-radius:4px; padding:6px 10px;
+    font-size:12px; cursor:pointer; letter-spacing:1px; font-family:inherit}
+  #detail .d-open:hover{background:rgba(72,187,212,.3)}
   /* Legend */
   #legend{bottom:16px; left:16px; padding:10px 14px; font-size:12px}
   #legend h3, .hud h3{font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); margin-bottom:7px}
@@ -172,6 +185,7 @@
 </div>
 
 <div id="tip"></div>
+<div class="hud" id="crumb"></div>
 <div class="hud" id="detail"><span class="d-close" id="dClose">✕</span><div id="dBody"></div></div>
 
 <script>
@@ -463,6 +477,8 @@ function draw(t){
     ctx.fillStyle=`rgba(200,220,255,${st.a*tw})`;
     ctx.beginPath(); ctx.arc(sx,sy,st.r,0,6.284); ctx.fill();
   }
+  // system view takes over the whole canvas
+  if(VIEW==='system'){ drawSysView(t); return; }
   // live game mode renders its own minimal scene
   if(MODE==='live'){ drawLive(); return; }
   // territories
@@ -739,6 +755,344 @@ function drawLive(){
   }
 }
 
+/* ============================== system view ============================== */
+let VIEW='galaxy', sysStack=[], savedView=null, sysHit=[];
+const ROMANV={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10,XI:11,XII:12,XIII:13,XIV:14};
+function romanOf(d){ for(const tk of d.split(' ')) if(ROMANV[tk]) return ROMANV[tk]; return null; }
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+
+function openSystem(s){
+  if(!s || !s.bodies) return;
+  if(VIEW==='galaxy'){ savedView={cam:{x:cam.x,y:cam.y}, zoom}; document.body.classList.add('sysview'); }
+  sysStack.push(s); VIEW='system';
+  hoverSys=null; tip.style.display='none'; L('detail').style.display='none';
+  updateCrumb(); dirty=true;
+}
+function closeSystemView(){
+  VIEW='galaxy'; sysStack=[];
+  document.body.classList.remove('sysview');
+  if(savedView){ cam={x:savedView.cam.x, y:savedView.cam.y}; zoom=savedView.zoom; }
+  L('crumb').style.display='none';
+  dirty=true;
+}
+function backOne(){ if(sysStack.length>1){ sysStack.pop(); updateCrumb(); dirty=true; } else closeSystemView(); }
+function updateCrumb(){
+  const c=L('crumb');
+  let h=`<span class="seg" data-i="-1">The Verse</span>`;
+  sysStack.forEach((s,i)=>{
+    h+=`<span class="sep">▸</span><span class="${i===sysStack.length-1?'cur':'seg'}" data-i="${i}">${s.name}</span>`;
+  });
+  c.innerHTML=h; c.style.display='block';
+  c.querySelectorAll('.seg').forEach(el=>el.onclick=()=>{
+    const i=+el.dataset.i;
+    if(i<0) closeSystemView(); else { sysStack=sysStack.slice(0,i+1); updateCrumb(); dirty=true; }
+  });
+}
+window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&VIEW==='system') backOne(); });
+window.openSystemByName=n=>{ const s=byName[n]; if(s) openSystem(s); };
+window.closeSystemView=closeSystemView;
+
+/* subtype → visual hints (A3) */
+const PSTYLES=[
+  [/Super Jupiter/i,{r:14,col:'#d8a86a',banded:1}], [/Gas Giant/i,{r:12,col:'#d8a86a',banded:1}],
+  [/Ice Giant/i,{r:10,col:'#9fc8e8'}], [/Ice Planet/i,{r:7.5,col:'#b8d8ee'}],
+  [/Ocean/i,{r:8,col:'#3f7fd4'}], [/Lava|Chthonian|Evaporating/i,{r:7,col:'#e0703a'}],
+  [/Smog/i,{r:7,col:'#b0a37e'}], [/Desert/i,{r:7,col:'#d4b070'}],
+  [/Super-Earth/i,{r:9.5,col:'#9fb2a4'}], [/Terrestrial/i,{r:8,col:'#a8a094'}],
+  [/Iron/i,{r:6,col:'#9a8f8a'}], [/Carbon/i,{r:6,col:'#6a6a72'}],
+  [/Coreless/i,{r:6,col:'#8f9aa4'}], [/Mesoplanet/i,{r:6,col:'#9aa4ae'}],
+  [/Puffy/i,{r:10,col:'#d8c8a0'}], [/Gas Dwarf/i,{r:8,col:'#c8b088'}],
+  [/Rogue/i,{r:13,col:'#7a8898',banded:1}], [/Artificial/i,{r:9,col:'#8fd4d0',artificial:1}],
+  [/Protoplanet|Dwarf/i,{r:4.5,col:'#8a8f96'}],
+];
+function planetStyle(st){
+  for(const [re,sty] of PSTYLES) if(re.test(st||'')) return sty;
+  return {r:7, col:'#9aa8b4'};
+}
+function starStyle(st){
+  st=st||'';
+  if(/Neutron/i.test(st)) return {r:5, col:'#ffffff', glow:26};
+  if(/White Dwarf/i.test(st)) return {r:8, col:'#dfe8f4', glow:14};
+  let r=/Giants-Giant/i.test(st)?32 : /Subgiant/i.test(st)?25 : 18;
+  const col=/[-\s]O$|[-\s]B$/.test(st)?'#9fc0ff' : /[-\s]A$/.test(st)?'#e8eeff' :
+            /[-\s]F$/.test(st)?'#f4ecc8' : /[-\s]K$/.test(st)?'#ffb060' :
+            /[-\s]M$/.test(st)?'#ff7f5a' : /Variable/i.test(st)?'#d8c8ff' : '#ffd88a';
+  return {r, col, glow:22};
+}
+
+/* layout + render of the current system */
+function drawSysView(t){
+  const s=sysStack[sysStack.length-1];
+  const bodies=s.bodies||[];
+  sysHit=[];
+  const cx=W/2, cy=H/2+12, seed=hashStr(s.name);
+  const byRef={}; // designation/name → placed object
+  const place=(b,x,y,r)=>{ const o={b,x,y,r}; byRef[b.d]=o; if(b.n) byRef[b.n]=o; sysHit.push(o); return o; };
+  const reg=o=>{ byRef[o.b.d]=o; if(o.b.n) byRef[o.b.n]=o; return o; };
+
+  // partition
+  const stars=bodies.filter(b=>b.t==='star'||b.t==='bh');
+  const parentOf=b=>b.p ? (byRef[b.p]||null) : null;
+  const isStarName=n=>stars.some(st=>st.d===n||st.n===n);
+  const tops=bodies.filter(b=>('planet'===b.t||'belt'===b.t||'field'===b.t) && (!b.p || isStarName(b.p)));
+  const numbered=tops.filter(b=>romanOf(b.d)!==null).sort((a,b2)=>romanOf(a.d)-romanOf(b2.d));
+  const rest=tops.filter(b=>romanOf(b.d)===null);
+  const ordered=[...numbered,...rest];
+
+  // center object(s)
+  const primaries=stars.filter(st=>!st.p);
+  const noStar = stars.length===0;
+  const R0=95, Rmax=Math.min(W,H)/2-95, Rj=Math.min(W,H)/2-48;
+  const n=ordered.length, ringR=k=> n<=1 ? (R0+Rmax)/2 : R0 + k*(Rmax-R0)/(n-1);
+
+  // ---- central star(s) / black hole / rogue planet
+  const drawStar=(b,x,y,scale)=>{
+    if(b.t==='bh'){ // Tamsa: accretion disk, no star glow
+      ctx.save();
+      ctx.strokeStyle='rgba(255,180,90,.75)'; ctx.lineWidth=3.5;
+      ctx.beginPath(); ctx.ellipse(x,y,34,10,-0.4,0,6.284); ctx.stroke();
+      ctx.strokeStyle='rgba(255,220,160,.35)'; ctx.lineWidth=7;
+      ctx.beginPath(); ctx.ellipse(x,y,40,13,-0.4,0,6.284); ctx.stroke();
+      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(x,y,13,0,6.284); ctx.fill();
+      ctx.strokeStyle='rgba(255,240,220,.9)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.arc(x,y,13.5,0,6.284); ctx.stroke();
+      ctx.restore();
+      place(b,x,y,40);
+      return;
+    }
+    const sty=starStyle(b.st), r=sty.r*(scale||1);
+    ctx.save();
+    ctx.shadowColor=sty.col; ctx.shadowBlur=(sty.glow||20)*(scale||1);
+    if(/Variable/i.test(b.st||'')) ctx.globalAlpha=0.75+0.25*Math.sin(t/500);
+    const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.1,x,y,r);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(0.55,sty.col); g.addColorStop(1,hexA(sty.col.length===7?sty.col:'#ffd88a',0.85));
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
+    ctx.restore();
+    place(b,x,y,r);
+  };
+  if(noStar && ordered.length){ // Min: rogue planet centered in darkness
+    const b=ordered.shift();
+    reg(drawPlanetAt(b, cx, cy, 2.2));
+  } else if(primaries.length===2){
+    drawStar(primaries[0], cx-38, cy, 0.9);
+    drawStar(primaries[1], cx+38, cy, 0.75);
+  } else if(primaries.length){
+    drawStar(primaries[0], cx, cy, 1);
+  }
+  // companion stars on tight orbit (Tyrol B, Kyuk'ya B)
+  stars.filter(st=>st.p).forEach((b,i)=>{
+    ctx.strokeStyle='rgba(140,170,205,.25)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,cy,52,0,6.284); ctx.stroke();
+    const a=-0.9+i; drawStar(b, cx+52*Math.cos(a), cy+52*Math.sin(a), 0.45);
+  });
+
+  // ---- orbit rings + top-level objects
+  ordered.forEach((b,k)=>{
+    const r=ringR(k);
+    const ang=((seed%628)/100) + k*2.4;
+    const x=cx+r*Math.cos(ang), y=cy+r*Math.sin(ang);
+    if(b.t==='belt'||b.t==='field'){
+      const multi=/Protoplanetary/i.test(b.d);
+      ctx.strokeStyle='rgba(150,170,195,.3)'; ctx.lineWidth=multi?1:4; ctx.setLineDash([2,7]);
+      ctx.beginPath(); ctx.arc(cx,cy,r,0,6.284); ctx.stroke();
+      if(multi){ for(const dr of [-7,7]){ ctx.beginPath(); ctx.arc(cx,cy,r+dr,0,6.284); ctx.stroke(); } }
+      ctx.setLineDash([]);
+      const lx=cx+r*Math.cos(ang), ly=cy+r*Math.sin(ang);
+      ctx.fillStyle='rgba(150,170,195,.6)'; ctx.font='9.5px "Segoe UI",sans-serif'; ctx.textAlign='center';
+      ctx.fillText((b.n||b.d)+(multi?' (×9)':''), lx, ly-8);
+      place(b,lx,ly,10);
+      // Odin I "The Coil": destroyed planet debris + lightning tint
+      if(/^Odin I$/.test(b.d)){
+        let rs2=seed; const rnd=()=>{rs2=(rs2*16807)%2147483647; return rs2/2147483647;};
+        ctx.fillStyle='rgba(160,190,255,.8)';
+        for(let i=0;i<26;i++){
+          const da=ang-0.5+rnd(), dr=r-10+rnd()*20;
+          ctx.beginPath(); ctx.arc(cx+dr*Math.cos(da), cy+dr*Math.sin(da), 0.8+rnd()*1.6, 0, 6.284); ctx.fill();
+        }
+      }
+    } else {
+      ctx.strokeStyle='rgba(140,170,205,.16)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(cx,cy,r,0,6.284); ctx.stroke();
+      reg(drawPlanetAt(b,x,y,1));
+    }
+  });
+
+  // planets orbiting other planets (RSI quirk, e.g. Pyro IV around Pyro V)
+  bodies.filter(b=>b.t==='planet' && b.p && !isStarName(b.p)).forEach((b,i)=>{
+    const p=byRef[b.p]; if(!p) return;
+    ctx.strokeStyle='rgba(140,170,205,.18)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r+18,0,6.284); ctx.stroke();
+    const a=0.8+i*2;
+    reg(drawPlanetAt(b, p.x+(p.r+18)*Math.cos(a), p.y+(p.r+18)*Math.sin(a), 0.65));
+  });
+  // ---- moons, stations, planetary rings, POI (parented objects)
+  bodies.filter(b=>b.t==='moon').forEach(b=>{
+    const p=parentOf(b); if(!p) return;
+    const idx=bodies.filter(x=>x.t==='moon'&&x.p===b.p).indexOf(b);
+    const cnt=bodies.filter(x=>x.t==='moon'&&x.p===b.p).length;
+    const mr=p.r+10+3*(idx%2);
+    ctx.strokeStyle='rgba(140,170,205,.18)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.arc(p.x,p.y,mr,0,6.284); ctx.stroke();
+    const a=-1.2+idx*(6.284/Math.max(3,cnt));
+    const x=p.x+mr*Math.cos(a), y=p.y+mr*Math.sin(a);
+    ctx.fillStyle=b.h?'#bfe8c8':'#9fb0be';
+    ctx.beginPath(); ctx.arc(x,y,2.2,0,6.284); ctx.fill();
+    if(b.n){ ctx.fillStyle='rgba(190,210,228,.75)'; ctx.font='8.5px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText(b.n,x,y-5); }
+    place(b,x,y,4);
+  });
+  bodies.filter(b=>b.t==='belt'&&b.p&&byRef[b.p]).forEach(b=>{
+    const p=byRef[b.p];
+    ctx.strokeStyle='rgba(200,190,160,.5)'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r*2.3,p.r*0.8,-0.5,0,6.284); ctx.stroke();
+    place(b,p.x+p.r*2.3,p.y,6);
+  });
+  bodies.filter(b=>b.t==='field'&&b.p&&byRef[b.p]).forEach(b=>{ // Hades IV split, Taranis debris
+    const p=byRef[b.p];
+    let rs2=hashStr(b.d); const rnd=()=>{rs2=(rs2*16807)%2147483647; return rs2/2147483647;};
+    ctx.fillStyle='rgba(200,180,150,.7)';
+    for(let i=0;i<14;i++){
+      const a=rnd()*6.284, d=p.r+4+rnd()*11;
+      ctx.beginPath(); ctx.arc(p.x+d*Math.cos(a), p.y+d*Math.sin(a), 0.7+rnd()*1.4, 0, 6.284); ctx.fill();
+    }
+    place(b,p.x,p.y-p.r-9,6);
+  });
+  bodies.filter(b=>b.t==='station').forEach((b,i)=>{
+    const p=parentOf(b);
+    const bx=p? p.x+(p.r+13)*Math.cos(2+i) : cx+60*Math.cos(1.1+i*1.3);
+    const by=p? p.y+(p.r+13)*Math.sin(2+i) : cy+60*Math.sin(1.1+i*1.3);
+    ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.PI/4);
+    ctx.fillStyle='rgba(160,200,225,.85)'; ctx.fillRect(-2.6,-2.6,5.2,5.2);
+    ctx.restore();
+    place(b,bx,by,5);
+  });
+  bodies.filter(b=>b.t==='poi').forEach(b=>{
+    const p=parentOf(b); if(!p) return;
+    ctx.fillStyle='rgba(255,90,90,.95)'; ctx.font='600 13px "Segoe UI",sans-serif'; ctx.textAlign='center';
+    ctx.fillText('⚠', p.x+p.r+9, p.y-p.r-4);
+    place(b,p.x+p.r+9,p.y-p.r-8,7);
+  });
+
+  drawSysJumps(s,cx,cy,Rj);
+  drawSysHeader(s,t,cx);
+}
+
+/* planet renderer with subtype styling + specials */
+function drawPlanetAt(b,x,y,scale){
+  const sty=planetStyle(b.st), r=sty.r*scale;
+  const isOya3=/^Oya III$/.test(b.d);
+  const shattered=/^Hades IV$/.test(b.d);
+  ctx.save();
+  if(b.h){ ctx.shadowColor='#a8e8b8'; ctx.shadowBlur=13; }
+  if(shattered){ // split planet halves + gap
+    ctx.fillStyle=sty.col;
+    ctx.beginPath(); ctx.arc(x-2.5,y-1,r,Math.PI*0.55,Math.PI*1.45); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(x+2.5,y+1,r,Math.PI*1.55,Math.PI*0.45); ctx.closePath(); ctx.fill();
+  } else if(isOya3){ // shared sovereignty split disc
+    ctx.fillStyle=AFF.UEE.color; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,Math.PI/2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=AFF.XIAN.color; ctx.beginPath(); ctx.arc(x,y,r,Math.PI/2,-Math.PI/2); ctx.closePath(); ctx.fill();
+  } else if(sty.artificial){ // Chronos III Synthworld: construct
+    ctx.fillStyle='#20343c';
+    ctx.beginPath();
+    for(let i=0;i<8;i++){ const a=i*Math.PI/4+0.39; const px=x+r*Math.cos(a), py=y+r*Math.sin(a); i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=sty.col; ctx.lineWidth=1.2; ctx.stroke();
+    ctx.strokeStyle=hexA(sty.col,0.5); ctx.lineWidth=0.7;
+    ctx.beginPath(); ctx.moveTo(x-r,y); ctx.lineTo(x+r,y); ctx.moveTo(x,y-r); ctx.lineTo(x,y+r); ctx.stroke();
+  } else {
+    const g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+    g.addColorStop(0,hexA('#ffffff',0.25)); g.addColorStop(0.3,sty.col); g.addColorStop(1,hexA(sty.col,0.75));
+    ctx.fillStyle=sty.col; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.fill();
+    if(sty.banded){
+      ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,6.284); ctx.clip();
+      ctx.fillStyle='rgba(0,0,0,.18)';
+      ctx.fillRect(x-r,y-r*0.55,r*2,r*0.28); ctx.fillRect(x-r,y+r*0.1,r*2,r*0.22);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+  if(b.h){ ctx.strokeStyle='rgba(168,232,184,.6)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,r+3,0,6.284); ctx.stroke(); }
+  // FCA badge carries into the system view
+  const sys=sysStack[sysStack.length-1];
+  if(sys && sys.fca && b.h){
+    ctx.strokeStyle='rgba(155,123,255,.85)'; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.arc(x,y,r+6,0,6.284); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // labels
+  ctx.textAlign='center';
+  if(b.n){
+    ctx.fillStyle='rgba(226,238,248,.95)'; ctx.font='600 11px "Segoe UI",sans-serif';
+    ctx.fillText(b.n,x,y+r+13);
+    ctx.fillStyle='rgba(125,147,168,.8)'; ctx.font='8.5px "Segoe UI",sans-serif';
+    ctx.fillText(b.d,x,y+r+23);
+  } else {
+    ctx.fillStyle='rgba(170,190,210,.8)'; ctx.font='10px "Segoe UI",sans-serif';
+    ctx.fillText(b.d,x,y+r+12);
+  }
+  const o={b,x,y,r:Math.max(r,6)};
+  sysHit.push(o);
+  return o;
+}
+
+/* jump points on the rim, at the true galaxy bearing of their destination */
+function drawSysJumps(s,cx,cy,Rj){
+  ctx.strokeStyle='rgba(140,170,205,.14)'; ctx.lineWidth=1; ctx.setLineDash([1,6]);
+  ctx.beginPath(); ctx.arc(cx,cy,Rj,0,6.284); ctx.stroke(); ctx.setLineDash([]);
+  const live=MODE==='live';
+  const routeIds=route? route.map(h=>h.id) : null;
+  const links=(adj[s.id]||[]).map(e=>({dest:byId[e.to], size:e.size}));
+  if(live && LIVE_SET.has(s.id) && (s.name==='Stanton'||s.name==='Nyx')){
+    links.push({dest:byName[s.name==='Stanton'?'Nyx':'Stanton'], size:'—', ph:true});
+  }
+  if(s.name===SEVERED.a.name||s.name===SEVERED.b.name){
+    links.push({dest:s.name===SEVERED.a.name?SEVERED.b:SEVERED.a, size:null, severed:true});
+  }
+  for(const lk of links){
+    const a=Math.atan2(lk.dest.y-s.y, lk.dest.x-s.x);
+    const x=cx+Rj*Math.cos(a), y=cy+Rj*Math.sin(a);
+    const ghost=live && !lk.ph && !LIVE_SET.has(lk.dest.id);
+    const onRoute=routeIds && routeIds.includes(s.id) && routeIds.includes(lk.dest.id) &&
+      Math.abs(routeIds.indexOf(s.id)-routeIds.indexOf(lk.dest.id))===1;
+    let col='rgba(150,195,235,.85)', label=`→ ${lk.dest.name} [${lk.size}]`;
+    if(lk.severed){ col='rgba(217,127,127,.85)'; label=`✕ ${lk.dest.name} · collapsed 2485`; }
+    else if(lk.ph){ col='rgba(255,150,54,.9)'; label=`⚠ ${lk.dest.name} · placeholder · ${LIVE_PATCH}`; }
+    else if(ghost){ col='rgba(140,170,205,.35)'; label=`→ ${lk.dest.name} · unbuilt`; }
+    if(onRoute) col='rgba(255,206,23,.95)';
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
+    if(onRoute){ ctx.shadowColor='#ffce17'; ctx.shadowBlur=10; }
+    ctx.strokeStyle=col; ctx.lineWidth=1.5;
+    if(lk.severed||lk.ph||ghost) ctx.setLineDash([2.5,2.5]);
+    ctx.strokeRect(-4,-4,8,8); ctx.setLineDash([]);
+    ctx.restore();
+    ctx.fillStyle=col; ctx.font='9.5px "Segoe UI",sans-serif';
+    ctx.textAlign = Math.cos(a)>=0 ? 'right':'left';
+    ctx.fillText(label, x-Math.cos(a)*12, y-Math.sin(a)*12+3);
+    sysHit.push({jump:lk, x, y, r:11,
+      nav: !lk.severed && !ghost && (!live || LIVE_SET.has(lk.dest.id))});
+  }
+}
+
+/* header + special overlays */
+function drawSysHeader(s,t,cx){
+  const col=s.isolated?'#7593a3':AFF[s.aff].color;
+  ctx.textAlign='center';
+  ctx.fillStyle='rgba(232,242,250,.95)'; ctx.font='600 19px "Segoe UI",sans-serif';
+  ctx.fillText(s.name, cx, 46);
+  ctx.fillStyle=hexA(col,0.9); ctx.font='10.5px "Segoe UI",sans-serif';
+  let sub=AFF[s.aff].name + (s.vs? ' · '+s.vs : '') + (s.fca? ' · ◌ FAIR CHANCE ACT PROTECTED':'');
+  ctx.fillText(sub.toUpperCase(), cx, 62);
+  if(s.noScan){
+    ctx.fillStyle='rgba(140,170,200,.08)';
+    for(let y=0;y<H;y+=7) if((y/7)%2<1) ctx.fillRect(0,y+((t/90)%14),W,2);
+    ctx.fillStyle='rgba(170,200,225,.75)'; ctx.font='12px "Segoe UI",sans-serif';
+    ctx.fillText('NO SCAN DATA — UEE SURVEY CLASSIFIED OR UNAVAILABLE', cx, H-64);
+  }
+  if(s.isolated){
+    ctx.fillStyle='rgba(200,190,150,.85)'; ctx.font='600 12px "Segoe UI",sans-serif';
+    ctx.fillText('LAST SURVEY 2485 — NO CONTACT', cx, H-64);
+  }
+}
+
 let raf;
 function loop(t){ draw(t); raf=requestAnimationFrame(loop); }
 
@@ -765,23 +1119,48 @@ L('modeLive').onclick=()=>setMode('live');
 let drag=null;
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};canvas.classList.add('dragging');});
 window.addEventListener('pointermove',e=>{
-  if(drag){
+  if(drag && VIEW==='galaxy'){
     const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
     if(Math.abs(dx)+Math.abs(dy)>3) drag.moved=true;
     cam.x-=dx/zoom; cam.y-=dy/zoom; drag.x=e.clientX; drag.y=e.clientY;
   } else hover(e);
 });
+let clickTimer=null, pendingSys=null;
 window.addEventListener('pointerup',e=>{
-  if(drag && !drag.moved) click(e);
+  if(drag && !drag.moved){
+    if(VIEW==='system'){ sysClick(e); }
+    else {
+      // debounce: a second click within the window opens the system view
+      // instead of registering two route-planner selections
+      const s=pick(e);
+      if(clickTimer!==null && s && s===pendingSys && s.bodies){
+        clearTimeout(clickTimer); clickTimer=null; pendingSys=null;
+        openSystem(s);
+      } else {
+        if(clickTimer!==null) clearTimeout(clickTimer);
+        pendingSys=s;
+        const ev={clientX:e.clientX, clientY:e.clientY};
+        clickTimer=setTimeout(()=>{ clickTimer=null; pendingSys=null; click(ev); }, 280);
+      }
+    }
+  }
   drag=null; canvas.classList.remove('dragging');
 });
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
+  if(VIEW==='system') return; // system view is a static schematic
   const w=s2w(e.clientX,e.clientY);
   const zmin=MODE==='live'?6:1.5, zmax=MODE==='live'?90:28;
   zoom*=Math.pow(1.0016,-e.deltaY); zoom=Math.max(zmin,Math.min(zmax,zoom));
   cam.x=w.x-(e.clientX-W/2)/zoom; cam.y=w.y-(e.clientY-H/2)/zoom;
 },{passive:false});
+function sysClick(e){
+  for(const o of sysHit){
+    if(o.jump && o.nav && Math.hypot(o.x-e.clientX,o.y-e.clientY)<o.r+4){
+      openSystem(o.jump.dest); return;
+    }
+  }
+}
 
 function pick(e){
   let best=null,bd=14;
@@ -792,7 +1171,36 @@ function pick(e){
   return best;
 }
 const tip=L('tip');
+function sysHover(e){
+  let best=null;
+  for(const o of sysHit){
+    if(Math.hypot(o.x-e.clientX,o.y-e.clientY) < (o.r||6)+4) best=o;
+  }
+  if(!best){ tip.style.display='none'; canvas.style.cursor='default'; return; }
+  let h;
+  if(best.jump){
+    const lk=best.jump;
+    h=`<div class="t-name" style="font-size:12.5px">${lk.severed?'✕':'→'} ${lk.dest.name}</div>`+
+      `<div class="t-flag">${lk.severed?'Jump point collapsed 2485 — no transit possible':
+        lk.ph?'Non-canon placeholder jump · '+LIVE_PATCH:
+        'Jump point'+(lk.size&&lk.size!=='—'?' · size '+lk.size:'')+(best.nav?' · click to travel':'')}</div>`;
+    canvas.style.cursor=best.nav?'pointer':'default';
+  } else {
+    const b=best.b;
+    const kind={star:'Star',bh:'Black hole',planet:'Planet',moon:'Moon',belt:'Belt / ring',
+                field:'Debris / cluster',station:'Station',poi:'Point of interest'}[b.t]||b.t;
+    h=`<div class="t-name" style="font-size:12.5px">${b.n||b.d}</div>`+
+      `<div class="t-aff" style="color:#8cb4e1">${b.n?b.d+' · ':''}${kind}${b.st?' · '+b.st:''}</div>`+
+      (b.h?`<div class="t-flag" style="color:#a8e8b8">Habitable</div>`:'')+
+      (b.p?`<div class="t-flag">Orbits ${b.p}</div>`:'');
+    canvas.style.cursor='default';
+  }
+  tip.innerHTML=h; tip.style.display='block';
+  tip.style.left=Math.min(e.clientX+16,W-280)+'px';
+  tip.style.top=Math.min(e.clientY+14,H-110)+'px';
+}
 function hover(e){
+  if(VIEW==='system'){ sysHover(e); return; }
   const s=pick(e); hoverSys=s;
   if(!s){
     if(MODE==='lore' && laneState()!=='none' && severedHit(e)){
@@ -815,7 +1223,9 @@ function hover(e){
   if(s.perry) flags+=`<div class="t-flag" style="color:#9ad4a0">╌ Former Perry Line system</div>`;
   if(s.fca) flags+=`<div class="t-flag" style="color:#b9a4ff">◌ Fair Chance Act — protected developing world</div>`;
   if(s.fcaCand) flags+=`<div class="t-flag" style="color:#9b8ac9">◌ FCA candidate — protection debated, not enacted</div>`;
-  tip.innerHTML=`<div class="t-name">${s.name}</div><div class="t-aff" style="color:${col}">${AFF[s.aff].name}</div>${flags}`;
+  const vsSub=s.vs?`<div class="t-aff" style="color:#c8324f">${s.vs}</div>`:'';
+  flags+=`<div class="t-flag" style="color:#5a7d92">double-click to view system</div>`;
+  tip.innerHTML=`<div class="t-name">${s.name}</div><div class="t-aff" style="color:${col}">${AFF[s.aff].name}</div>${vsSub}${flags}`;
   tip.style.display='block';
   const tx=Math.min(e.clientX+16,W-280), ty=Math.min(e.clientY+14,H-120);
   tip.style.left=tx+'px'; tip.style.top=ty+'px';
@@ -850,14 +1260,18 @@ function showDetail(s){
   if(s.fca) h+=`<div class="d-flag fca">◌ <b>Fair Chance Act</b> — development is halted to protect an emerging species or ecosystem; the system is closed to expansion.</div>`;
   if(s.fcaCand) h+=`<div class="d-flag fca" style="opacity:.8">◌ <b>FCA candidate</b> — Fair Chance Act protection has been proposed or debated for this system, but not enacted.</div>`;
   if(s.desc) h+=`<div class="d-desc">${s.desc}</div>`;
+  h+=`<button class="d-open" id="dOpenSys">Open system ▸</button>`;
   L('dBody').innerHTML=h; L('detail').style.display='block';
+  const btn=L('dOpenSys');
+  if(btn) btn.onclick=()=>openSystem(s);
 }
 L('dClose').onclick=()=>L('detail').style.display='none';
 
 /* ============================== route UI ============================== */
 const rpFrom=L('rpFrom'), rpTo=L('rpTo'), rpSize=L('rpSize'), rpRes=L('routeResult');
 [...SYS].sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>{
-  rpFrom.add(new Option(s.name,s.id)); rpTo.add(new Option(s.name,s.id));
+  const label=s.name+(s.formerName?' ('+s.formerName+')':''); // former names stay searchable
+  rpFrom.add(new Option(label,s.id)); rpTo.add(new Option(label,s.id));
 });
 function syncRouteUI(){ rpFrom.value=selFrom?selFrom.id:''; rpTo.value=selTo?selTo.id:''; }
 rpFrom.onchange=()=>{selFrom=byId[rpFrom.value]||null; computeRoute();};
