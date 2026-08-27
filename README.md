@@ -1,10 +1,10 @@
-# The Verse — a grand-strategy-style map of the Star Citizen universe
+# Political Map — a grand-strategy-style map of the Star Citizen universe
 
 An interactive, single-file starmap of the Star Citizen universe, drawn the way grand-strategy games draw galaxies: filled faction territories with glowing borders, a jump-point network rendered like hyperlanes, and the political geography of the 'verse visible at a glance.
 
 ![Map overview](screenshot.png)
 
-**[▶ Open the live map](https://YOUR-USERNAME.github.io/YOUR-REPO/)** *(update this link after enabling GitHub Pages)*
+**[▶ Open the live map](https://andersktwo.github.io/SC-map/)**
 
 ## Features
 

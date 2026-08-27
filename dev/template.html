@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Verse — Star Citizen Galactic Map</title>
-<meta name="description" content="Grand-strategy-style interactive map of the Star Citizen universe: faction borders, jump-point network, route planner, and lore battle markers for all 90 systems of the ARK Starmap.">
-<meta property="og:title" content="The Verse — Star Citizen Galactic Map">
-<meta property="og:description" content="Interactive grand-strategy-style starmap: faction territories, jump routes, route planner, battles & the Perry Line. Unofficial fan project.">
+<title>Political Map — Star Citizen Universe</title>
+<meta name="description" content="Grand-strategy-style interactive political map of the Star Citizen universe: faction borders, jump-point network, route planner, and lore battle markers for all 90 known systems.">
+<meta property="og:title" content="Political Map — Star Citizen Universe">
+<meta property="og:description" content="Interactive grand-strategy-style political map: faction territories, jump routes, route planner, and battle markers. Unofficial fan project.">
 <meta property="og:type" content="website">
 <style>
   :root{
@@ -118,8 +118,8 @@
 <canvas id="map"></canvas>
 
 <div class="hud" id="title">
-  <h1>The Verse</h1>
-  <p id="subtitle">Star Citizen · Known Universe · ARK Starmap 2946</p>
+  <h1>Political Map</h1>
+  <p id="subtitle">Star Citizen · Known Universe · 2946</p>
   <p style="margin-top:4px;font-size:9px;letter-spacing:1px;color:#5a6c7d">Unofficial fan project · Data © Cloud Imperium Rights LLC</p>
 </div>
 
@@ -786,7 +786,7 @@ function closeSystemView(){
 function backOne(){ if(sysStack.length>1){ sysStack.pop(); resetSysCam(); updateCrumb(); dirty=true; } else closeSystemView(); }
 function updateCrumb(){
   const c=L('crumb');
-  let h=`<span class="seg" data-i="-1">The Verse</span>`;
+  let h=`<span class="seg" data-i="-1">Galaxy</span>`;
   sysStack.forEach((s,i)=>{
     h+=`<span class="sep">▸</span><span class="${i===sysStack.length-1?'cur':'seg'}" data-i="${i}">${s.name}</span>`;
   });
@@ -1265,7 +1265,7 @@ function setMode(m){
   L('modeLive').classList.toggle('active', m==='live');
   L('subtitle').textContent = m==='live'
     ? 'Live game · '+LIVE_PATCH+' · Stanton — Pyro — Nyx'
-    : 'Star Citizen · Known Universe · ARK Starmap 2946';
+    : 'Star Citizen · Known Universe · 2946';
   if(views[m]){ cam={x:views[m].cam.x, y:views[m].cam.y}; zoom=views[m].zoom; }
   else zoomFit();
   hoverSys=null; tip.style.display='none'; L('detail').style.display='none';
